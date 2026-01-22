@@ -21,6 +21,15 @@ pub struct Lexer {
     tokens: Vec<Token>,
 }
 
+impl IntoIterator for Lexer  {
+    type Item = Token;
+    type IntoIter = std::vec::IntoIter<Token>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.tokens.into_iter()
+    }
+}
+
 impl Lexer {
     pub fn new(input: &str) -> Lexer {
         let mut tokens = Vec::new();
