@@ -1,27 +1,12 @@
+use crate::Token;
 use std::iter::Peekable;
-
-#[derive(Debug, Clone)]
-pub enum Token {
-    LeftBrace,
-    RightBrace,
-    LeftBracket,
-    RightBracket,
-    Quote,
-    String(String),
-    Number(String),
-    Colon,
-    Comma,
-    True,
-    False,
-    Null,
-}
 
 #[derive(Debug)]
 pub struct Lexer {
     tokens: Vec<Token>,
 }
 
-impl IntoIterator for Lexer  {
+impl IntoIterator for Lexer {
     type Item = Token;
     type IntoIter = std::vec::IntoIter<Token>;
 
