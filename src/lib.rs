@@ -1,4 +1,5 @@
 use crate::{lexer::Lexer, parser::Parser};
+use std::collections::HashMap;
 
 pub mod lexer;
 pub mod parser;
@@ -20,9 +21,15 @@ pub enum Token {
 }
 
 #[derive(Debug)]
+pub struct Object(HashMap<String, JsonValue>);
+
+#[derive(Debug)]
+pub struct Array(Vec<JsonValue>);
+
+#[derive(Debug)]
 pub enum JsonValue {
-    JsonObject,
-    JsonArray,
+    Object(Object),
+    Array(Array),
     String,
     Number,
     Boolean,
@@ -37,23 +44,20 @@ pub enum JsonError {
 }
 
 pub fn parse(input: &str) -> Result<JsonValue, JsonError> {
-    let tokens = Lexer::new(input).into_tokens();
-    let parser = Parser::new(tokens);
+    let tokens: Vec<Token> = Lexer::new(input).into_tokens();
+    let parser: Parser = Parser::new(tokens);
 
     let _json_value: Result<JsonValue, JsonError> = parser.parse();
 
-
-    Ok(JsonValue::JsonArray)
+    Ok(JsonValue::Null)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::parse;
-
     #[test]
     fn test_parser() {
-        let input = r##"{"a" : [1,2.9,"Prudhvi"]}"##;
-        let _result: Result<crate::JsonValue, crate::JsonError> = parse(input);
+        let input: &str = r##"{"a" : [1,2.9,"Prudhvi"]}"##;
+        let _result: Result<crate::JsonValue, crate::JsonError> = crate::parse(input);
 
         ()
     }
