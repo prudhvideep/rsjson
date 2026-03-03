@@ -24,15 +24,12 @@ pub enum Token {
 pub struct Object(HashMap<String, JsonValue>);
 
 #[derive(Debug)]
-pub struct Array(Vec<JsonValue>);
-
-#[derive(Debug)]
 pub enum JsonValue {
     Object(Object),
-    Array(Array),
-    String,
-    Number,
-    Boolean,
+    Array(Vec<JsonValue>),
+    String(String),
+    Number(String),
+    Boolean(bool),
     Null,
 }
 
@@ -59,6 +56,6 @@ mod tests {
         let input: &str = r##"{"a" : [1,2.9,"Prudhvi"]}"##;
         let _result: Result<crate::JsonValue, crate::JsonError> = crate::parse(input);
 
-        ()
+        println!("{:?}",_result)
     }
 }
