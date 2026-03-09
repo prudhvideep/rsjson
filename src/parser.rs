@@ -1,5 +1,5 @@
 use crate::{JsonError, JsonValue, Token};
-use std::{iter::Peekable};
+use std::{collections::HashMap, iter::Peekable};
 
 #[derive(Debug)]
 pub struct Parser {
@@ -20,18 +20,46 @@ impl Parser {
         Parser { tokens: tokens }
     }
 
-    fn parse_object(
-        token_iter: &mut Peekable<std::vec::IntoIter<Token>>,
-    ) -> Result<JsonValue, JsonError> {
-        todo!()
-    }
-
-    fn expect_comma(token_iter: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<(),JsonError> {
-        if let Some(Token::Comma) = token_iter.peek() {
+    fn expect_colon(token_iter: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<(), JsonError> {
+        if let Some(Token::Colon) = token_iter.peek() {
             token_iter.next();
             Ok(())
         } else {
             Err(JsonError::UnexpectedToken)
+        }
+    }
+
+    fn parse_string(
+        token_iter: &mut Peekable<std::vec::IntoIter<Token>>,
+    ) -> Result<JsonValue, JsonError> {
+        let token = token_iter.next().ok_or(JsonError::UnexpectedToken)?;
+
+        match token {
+            Token::String(str) => return Ok(JsonValue::String(str.to_string())),
+            _ => return Err(JsonError::UnexpectedToken),
+        }
+    }
+
+    fn parse_number(
+        token_iter: &mut Peekable<std::vec::IntoIter<Token>>,
+    ) -> Result<JsonValue, JsonError> {
+        let token = token_iter.next().ok_or(JsonError::UnexpectedToken)?;
+
+        match token {
+            Token::Number(num) => return Ok(JsonValue::Number(num.to_string())),
+            _ => Err(JsonError::UnexpectedToken),
+        }
+    }
+
+    fn parse_boolean(
+        token_iter: &mut Peekable<std::vec::IntoIter<Token>>,
+    ) -> Result<JsonValue, JsonError> {
+        let token = token_iter.next().ok_or(JsonError::UnexpectedToken)?;
+
+        match token {
+            Token::True => Ok(JsonValue::Boolean(true)),
+            Token::False => Ok(JsonValue::Boolean(false)),
+            _ => Err(JsonError::UnexpectedToken),
         }
     }
 
@@ -40,118 +68,119 @@ impl Parser {
     ) -> Result<JsonValue, JsonError> {
         let mut values: Vec<JsonValue> = Vec::new();
 
-        while let Some(token) = token_iter.peek() {
+        loop {
+            let token = token_iter.next().ok_or(JsonError::UnexpectedToken)?;
+            println!("token in parse array {:?}", token);
             match token {
-                Token::Null => {
-                    values.push(JsonValue::Null);
-                    token_iter.next();
-
-                    Self::expect_comma(token_iter)?;
-                },
-                Token::True | Token::False => {
-                    let value = matches!(token,Token::True);
-                    values.push(JsonValue::Boolean(value));
-
-                    token_iter.next();
-                    Self::expect_comma(token_iter)?;
-                },
-                Token::Number(num_str) => {
-                    values.push(JsonValue::Number(num_str.to_string()));
-
-                    token_iter.next();
-                    Self::expect_comma(token_iter)?;
-                },
-                Token::String(str) => {
-                    values.push(JsonValue::String(str.to_string()));
-
-                    token_iter.next();
-                    Self::expect_comma(token_iter)?;
-                },
-                Token::LeftBrace => {
-                    token_iter.next();
-
-                    let json_result = Self::parse_object(token_iter)?;
-                    values.push(json_result);
-
-                    Self::expect_comma(token_iter)?;
-                },
-                Token::LeftBracket => {
-                    token_iter.next();
-
-                    let json_result = Self::parse_array(token_iter)?;
-                    values.push(json_result);
-
-                    Self::expect_comma(token_iter)?;
-                },
+                Token::Null => values.push(JsonValue::Null),
+                Token::True => values.push(JsonValue::Boolean(true)),
+                Token::False => values.push(JsonValue::Boolean(false)),
+                Token::Number(num_str) => values.push(JsonValue::Number(num_str.to_string())),
+                Token::String(str) => values.push(JsonValue::String(str.to_string())),
+                Token::LeftBrace => values.push(Self::parse_object(token_iter)?),
+                Token::LeftBracket => values.push(Self::parse_array(token_iter)?),
                 Token::RightBracket => {
+                    break;
+                }
+                Token::Comma => {
                     token_iter.next();
-                    return Ok(JsonValue::Array(values))
-                },
+                }
+                _ => return Err(JsonError::UnexpectedToken),
+            }
+
+            match token_iter.peek() {
+                Some(Token::Comma) => {
+                    token_iter.next();
+                }
+                Some(Token::RightBracket) => {
+                    token_iter.next();
+                    break;
+                }
                 _ => return Err(JsonError::UnexpectedToken),
             }
         }
-        
-        Err(JsonError::UnexpectedToken)
+
+        Ok(JsonValue::Array(values))
     }
 
-    fn parse_string(
+    fn parse_object(
         token_iter: &mut Peekable<std::vec::IntoIter<Token>>,
     ) -> Result<JsonValue, JsonError> {
-        todo!()
-    }
+        let mut object: HashMap<String, JsonValue> = HashMap::new();
 
-    fn parse_number(
-        token_iter: &mut Peekable<std::vec::IntoIter<Token>>,
-    ) -> Result<JsonValue, JsonError> {
-        todo!()
-    }
+        loop {
+            let token = token_iter.next().ok_or(JsonError::UnexpectedToken)?;
+            println!("token in parse object {:?}", token);
 
-    fn parse_boolean(
-        token_iter: &mut Peekable<std::vec::IntoIter<Token>>,
-    ) -> Result<JsonValue, JsonError> {
-        todo!()
+            match token {
+                Token::String(str) => {
+                    let key = str.to_string();
+                    Self::expect_colon(token_iter)?;
+                    let next_token = token_iter.next().ok_or(JsonError::UnexpectedToken)?;
+                    println!("next token in parse object {:?}", next_token);
+                    let value = match next_token {
+                        Token::Null => JsonValue::Null,
+                        Token::String(str) => JsonValue::String(str),
+                        Token::Number(num) => JsonValue::Number(num),
+                        Token::True | Token::False => {
+                            JsonValue::Boolean(matches!(next_token, Token::True))
+                        }
+                        Token::LeftBrace => Self::parse_object(token_iter)?,
+                        Token::LeftBracket => Self::parse_array(token_iter)?,
+                        _ => return Err(JsonError::UnexpectedToken),
+                    };
+                    object.insert(key, value);
+
+                    match token_iter.peek() {
+                        Some(Token::Comma) => {
+                            token_iter.next();
+                        }
+                        Some(Token::RightBrace) => {
+                            token_iter.next();
+                            break;
+                        }
+                        _ => return Err(JsonError::UnexpectedToken),
+                    }
+                }
+                Token::RightBrace => break,
+                _ => return Err(JsonError::UnexpectedToken),
+            }
+        }
+        Ok(JsonValue::Object(object))
     }
 
     pub fn parse(self) -> Result<JsonValue, JsonError> {
+        let mut value = JsonValue::Null;
         let mut token_iter: Peekable<std::vec::IntoIter<Token>> = self.into_iter();
-        let mut json_value: JsonValue = JsonValue::Null;
 
         while let Some(token) = token_iter.peek() {
             match token {
                 Token::LeftBrace => {
                     token_iter.next();
-
-                    let _res: Result<JsonValue, JsonError> = match token_iter.peek() {
-                        Some(Token::Colon) => {
-                            token_iter.next();
-                            Self::parse_object(&mut token_iter)
-                        }
-                        _ => Err(JsonError::UnexpectedToken),
-                    };
+                    value = Self::parse_object(&mut token_iter)?;
                 }
                 Token::LeftBracket => {
                     token_iter.next();
-
-                    let _res = match token_iter.peek() {
-                        Some(_token) => Self::parse_array(&mut token_iter),
-                        _ => Err(JsonError::UnexpectedToken),
-                    };
+                    value = Self::parse_array(&mut token_iter)?;
                 }
                 Token::Number(_number) => {
-                    let _res = Self::parse_number(&mut token_iter);
-                }
-                Token::Quote => {
-                    let _res = Self::parse_string(&mut token_iter);
+                    value = Self::parse_number(&mut token_iter)?;
                 }
                 Token::False | Token::True => {
-                    let _res = Self::parse_boolean(&mut token_iter);
+                    value = Self::parse_boolean(&mut token_iter)?;
+                }
+                Token::String(_str) => {
+                    value = Self::parse_string(&mut token_iter)?;
+                }
+                Token::Null => {
+                    token_iter.next();
+                    value = JsonValue::Null;
                 }
                 _ => {
-                    token_iter.next();
+                    return Err(JsonError::UnexpectedToken);
                 }
             }
         }
-
-        Ok(JsonValue::Boolean(true))
+        Ok(value)
     }
 }
