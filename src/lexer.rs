@@ -105,7 +105,6 @@ impl Lexer {
                     tokens.push(Token::Number(s));
                 }
                 _ => {
-                    println!("invalid json");
                     chars.next();
                 }
             }

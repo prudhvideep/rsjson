@@ -1,5 +1,5 @@
 use crate::{lexer::Lexer, parser::Parser};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 pub mod lexer;
 pub mod parser;
@@ -37,6 +37,67 @@ pub enum JsonError {
     InvalidLiteral,
 }
 
+impl fmt::Display for JsonValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Self::pretty_print(f, self, 0)
+    }
+}
+
+impl JsonValue {
+    fn pretty_print(
+        f: &mut fmt::Formatter<'_>,
+        json_value: &JsonValue,
+        indent: usize,
+    ) -> fmt::Result {
+        let cur_indent = "    ".repeat(indent);
+        let next_indent = "    ".repeat(indent + 1);
+
+        match json_value {
+            JsonValue::String(str) => write!(f, "\"{}\"", str),
+            JsonValue::Number(num) => write!(f, "{}", num),
+            JsonValue::Boolean(val) => write!(f, "{}", val),
+            JsonValue::Null => write!(f, "null"),
+            JsonValue::Array(array) => {
+                if array.is_empty() {
+                    return write!(f, "[]");
+                }
+
+                write!(f, "[\n")?;
+                for (i, val) in array.iter().enumerate() {
+                    write!(f, "{next_indent}")?;
+                    Self::pretty_print(f, val, indent + 1)?;
+                    if i != array.len() - 1 {
+                        write!(f, ",")?;
+                    }
+                    write!(f, "\n")?;
+                }
+                write!(f, "{cur_indent}")?;
+                write!(f, "]")?;
+                Ok(())
+            }
+            JsonValue::Object(object) => {
+                if object.is_empty() {
+                    return write!(f, "{{}}");
+                }
+
+                write!(f, "{{\n")?;
+                for (i, record) in object.iter().enumerate() {
+                    write!(f, "{next_indent}")?;
+                    write!(f, "\"{}\": ", record.0)?;
+                    Self::pretty_print(f, record.1, indent + 1)?;
+                    if i != object.len() - 1 {
+                        write!(f, ",")?;
+                    }
+                    write!(f, "\n")?;
+                }
+                write!(f, "{cur_indent}")?;
+                write!(f, "}}")?;
+                Ok(())
+            }
+        }
+    }
+}
+
 pub fn parse(input: &str) -> Result<JsonValue, JsonError> {
     let tokens: Vec<Token> = Lexer::new(input).into_tokens();
     let parser: Parser = Parser::new(tokens);
@@ -46,7 +107,7 @@ pub fn parse(input: &str) -> Result<JsonValue, JsonError> {
 
 #[cfg(test)]
 mod parser_tests {
-    use crate::{JsonValue, Lexer, Parser};
+    use crate::{parse, JsonValue, Lexer, Parser};
 
     #[test]
     fn parse_array() {
@@ -182,7 +243,7 @@ mod parser_tests {
         let input = "null";
 
         let tokens = Lexer::new(input).into_tokens();
-        dbg!("{:?}",tokens);
+        dbg!("{:?}", tokens);
 
         let result = Parser::new(Lexer::new(input).into_tokens())
             .parse()
@@ -262,5 +323,109 @@ mod parser_tests {
         let result = Parser::new(Lexer::new(input).into_tokens()).parse();
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_display_null() {
+        let result = parse("null").unwrap();
+        assert_eq!(result.to_string(), "null");
+    }
+
+    #[test]
+    fn test_display_boolean_true() {
+        let result = parse("true").unwrap();
+        assert_eq!(result.to_string(), "true");
+    }
+
+    #[test]
+    fn test_display_boolean_false() {
+        let result = parse("false").unwrap();
+        assert_eq!(result.to_string(), "false");
+    }
+
+    #[test]
+    fn test_display_number() {
+        let result = parse("123").unwrap();
+        assert_eq!(result.to_string(), "123");
+    }
+
+    #[test]
+    fn test_display_string() {
+        let result = parse(r#""hello""#).unwrap();
+        println!("{result}");
+        assert_eq!(result.to_string(), "\"hello\"");
+    }
+
+    #[test]
+    fn test_display_empty_array() {
+        let result = parse("[]").unwrap();
+        println!("{result}");
+        let output = result.to_string();
+        assert!(output.contains("["));
+        assert!(output.contains("]"));
+    }
+
+    #[test]
+    fn test_display_empty_object() {
+        let result = parse("{}").unwrap();
+        println!("{result}");
+        let output = result.to_string();
+        assert!(output.contains("{"));
+        assert!(output.contains("}"));
+    }
+
+    #[test]
+    fn test_display_simple_array() {
+        let result = parse("[1,2,3]").unwrap();
+        println!("{result}");
+        let output = result.to_string();
+        assert!(output.contains("1"));
+        assert!(output.contains("2"));
+        assert!(output.contains("3"));
+    }
+
+    #[test]
+    fn test_display_simple_object() {
+        let result = parse(r#"{"name":"john"}"#).unwrap();
+        println!("{result}");
+        let output = result.to_string();
+        assert!(output.contains("name"));
+        assert!(output.contains("john"));
+    }
+
+    #[test]
+    fn test_display_nested_object() {
+        let result = parse(r#"{"a":{"b":"c"}}"#).unwrap();
+        println!("{result}");
+        let output = result.to_string();
+        assert!(output.contains("a"));
+        assert!(output.contains("b"));
+        assert!(output.contains("c"));
+    }
+
+    #[test]
+    fn test_display_array_with_objects() {
+        let result = parse(r#"[{"a":1},{"b":2}]"#).unwrap();
+        println!("{result}");
+        let output = result.to_string();
+        assert!(output.contains("a"));
+        assert!(output.contains("b"));
+    }
+
+    #[test]
+    fn test_display_complex() {
+        let input = r#"{"name":"prudhvi","age":25,"skills":["rust","python"]}"#;
+        let result = parse(input).unwrap();
+        println!("{result}");
+
+        let output = result.to_string();
+
+        assert!(output.contains("name"));
+        assert!(output.contains("prudhvi"));
+        assert!(output.contains("age"));
+        assert!(output.contains("25"));
+        assert!(output.contains("skills"));
+        assert!(output.contains("rust"));
+        assert!(output.contains("python"));
     }
 }

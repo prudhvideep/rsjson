@@ -17,7 +17,7 @@ impl IntoIterator for Parser {
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
-        Parser { tokens: tokens }
+        Parser { tokens }
     }
 
     fn expect_colon(token_iter: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<(), JsonError> {
