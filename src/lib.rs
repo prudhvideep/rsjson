@@ -1,40 +1,20 @@
-use crate::{lexer::Lexer, parser::Parser};
+use crate::{
+    lexer::{Lexer, Token},
+    parser::Parser,
+};
 use std::{collections::HashMap, fmt};
 
-pub mod lexer;
-pub mod parser;
+mod lexer;
+mod parser;
 
-#[derive(Debug, Clone)]
-pub enum Token {
-    LeftBrace,
-    RightBrace,
-    LeftBracket,
-    RightBracket,
-    Quote,
-    String(String),
-    Number(String),
-    Colon,
-    Comma,
-    True,
-    False,
-    Null,
-}
-
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 pub enum JsonValue {
     Object(HashMap<String, JsonValue>),
     Array(Vec<JsonValue>),
     String(String),
-    Number(String),
+    Number(f64),
     Boolean(bool),
     Null,
-}
-
-#[derive(Debug)]
-pub enum JsonError {
-    UnexpectedToken,
-    UnexpectedEof,
-    InvalidLiteral,
 }
 
 impl fmt::Display for JsonValue {
@@ -44,6 +24,45 @@ impl fmt::Display for JsonValue {
 }
 
 impl JsonValue {
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            JsonValue::String(str) => Some(str),
+            _ => None,
+        }
+    }
+
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            JsonValue::Number(num) => Some(*num),
+            _ => None,
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            JsonValue::Boolean(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    pub fn get(&self,key : &str) -> Option<&JsonValue> {
+        match self {
+            JsonValue::Object(map) => map.get(key),
+            _ => None
+        }
+    }
+
+    pub fn get_index(&self, index: usize) -> Option<&JsonValue> {
+        match self {
+            JsonValue::Array(arr) => arr.get(index),
+            _ => None
+        }
+    }
+
+    pub fn is_null(&self) -> bool {
+        matches!(self,JsonValue::Null)
+    }
+
     fn pretty_print(
         f: &mut fmt::Formatter<'_>,
         json_value: &JsonValue,
@@ -98,6 +117,31 @@ impl JsonValue {
     }
 }
 
+#[derive(Debug)]
+pub enum JsonError {
+    UnexpectedToken,
+    UnexpectedEof,
+    InvalidNumber(std::num::ParseFloatError),
+}
+
+impl std::error::Error for JsonError {}
+
+impl fmt::Display for JsonError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            JsonError::UnexpectedToken => write!(f, "unexpeted token"),
+            JsonError::UnexpectedEof => write!(f, "unexpected end of input"),
+            JsonError::InvalidNumber(err) => write!(f, "invalid number : {err}"),
+        }
+    }
+}
+
+impl From<std::num::ParseFloatError> for JsonError {
+    fn from(err: std::num::ParseFloatError) -> Self {
+        JsonError::InvalidNumber(err)
+    }
+}
+
 pub fn parse(input: &str) -> Result<JsonValue, JsonError> {
     let tokens: Vec<Token> = Lexer::new(input).into_tokens();
     let parser: Parser = Parser::new(tokens);
@@ -107,86 +151,55 @@ pub fn parse(input: &str) -> Result<JsonValue, JsonError> {
 
 #[cfg(test)]
 mod parser_tests {
-    use crate::{parse, JsonValue, Lexer, Parser};
+    use crate::{parse, JsonValue};
 
     #[test]
     fn parse_array() {
-        let input = "[1,2,3]";
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse array");
-
-        assert!(matches!(result, JsonValue::Array(_)));
+        let result = parse("[1,2,3]").expect("should parse array");
+        assert_eq!(result.get_index(0).and_then(|v| v.as_f64()), Some(1.0));
+        assert_eq!(result.get_index(1).and_then(|v| v.as_f64()), Some(2.0));
+        assert_eq!(result.get_index(2).and_then(|v| v.as_f64()), Some(3.0));
     }
 
     #[test]
     fn parse_number() {
-        let input = "123.45";
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse number");
-
-        assert!(matches!(result, JsonValue::Number(_)));
+        let result = parse("123.45").expect("should parse number");
+        assert_eq!(result.as_f64(), Some(123.45));
     }
 
     #[test]
     fn parse_string() {
-        let input = r#""hello""#;
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse string");
-
-        assert!(matches!(result, JsonValue::String(_)));
+        let result = parse(r#""hello""#).expect("should parse string");
+        assert_eq!(result.as_str(), Some("hello"));
     }
 
     #[test]
     fn parse_object() {
-        let input = r#"{"name":"prudhvi"}"#;
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse object");
-
-        assert!(matches!(result, JsonValue::Object(_)));
+        let result = parse(r#"{"name":"prudhvi"}"#).expect("should parse object");
+        assert_eq!(result.get("name").and_then(|v| v.as_str()), Some("prudhvi"));
     }
 
     #[test]
     fn parse_empty_array() {
-        let input = "[]";
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse empty array");
-
-        assert!(matches!(result, JsonValue::Array(_)));
+        let result = parse("[]").expect("should parse empty array");
+        assert_eq!(result.get_index(0), None);
     }
 
     #[test]
     fn parse_nested_json() {
-        let input = r#"{"a":[1,2,{"b":true}]}"#;
-
-        let tokens = Lexer::new(input).into_tokens();
-        dbg!(tokens);
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse nested json");
-
-        assert!(matches!(result, JsonValue::Object(_)));
+        let result = parse(r#"{"a":[1,2,{"b":true}]}"#).expect("should parse nested json");
+        let b = result
+            .get("a")
+            .and_then(|v| v.get_index(2))
+            .and_then(|v| v.get("b"))
+            .and_then(|v| v.as_bool());
+        assert_eq!(b, Some(true));
     }
 
     #[test]
     fn parse_empty_object() {
-        let input = "{}";
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse empty object");
-
-        assert!(matches!(result, JsonValue::Object(_)));
+        let result = parse("{}").expect("should parse empty object");
+        assert_eq!(result.get("any"), None);
     }
 
     #[test]
@@ -202,127 +215,84 @@ mod parser_tests {
         }
     }
     "#;
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse complex json");
-
-        dbg!(&result);
-        assert!(matches!(result, JsonValue::Object(_)));
+        let result = parse(input).expect("should parse complex json");
+        assert_eq!(result.get("name").and_then(|v| v.as_str()), Some("prudhvi"));
+        assert_eq!(result.get("age").and_then(|v| v.as_f64()), Some(25.0));
+        assert_eq!(result.get("is_student").and_then(|v| v.as_bool()), Some(false));
+        assert_eq!(result.get("skills").and_then(|v| v.get_index(0)).and_then(|v| v.as_str()), Some("rust"));
+        assert_eq!(result.get("address").and_then(|v| v.get("city")).and_then(|v| v.as_str()), Some("hyderabad"));
     }
 
     #[test]
     fn parse_invalid_json() {
-        let input = r#"{"a":}"#;
-
-        let result = Parser::new(Lexer::new(input).into_tokens()).parse();
-
-        assert!(result.is_err());
+        assert!(parse(r#"{"a":}"#).is_err());
     }
 
     #[test]
     fn parse_true() {
-        let result = Parser::new(Lexer::new("true").into_tokens())
-            .parse()
-            .expect("should parse true");
-
-        assert!(matches!(result, JsonValue::Boolean(true)));
+        let result = parse("true").expect("should parse true");
+        assert_eq!(result.as_bool(), Some(true));
     }
 
     #[test]
     fn parse_false() {
-        let result = Parser::new(Lexer::new("false").into_tokens())
-            .parse()
-            .expect("should parse false");
-
-        assert!(matches!(result, JsonValue::Boolean(false)));
+        let result = parse("false").expect("should parse false");
+        assert_eq!(result.as_bool(), Some(false));
     }
 
     #[test]
     fn parse_null() {
-        let input = "null";
-
-        let tokens = Lexer::new(input).into_tokens();
-        dbg!("{:?}", tokens);
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse null");
-
-        assert!(matches!(result, JsonValue::Null));
+        let result = parse("null").expect("should parse null");
+        assert!(result.is_null());
     }
 
     #[test]
     fn parse_nested_arrays() {
-        let input = "[[1,2],[3,4]]";
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse nested arrays");
-
-        assert!(matches!(result, JsonValue::Array(_)));
+        let result = parse("[[1,2],[3,4]]").expect("should parse nested arrays");
+        assert_eq!(result.get_index(0).and_then(|v| v.get_index(0)).and_then(|v| v.as_f64()), Some(1.0));
+        assert_eq!(result.get_index(1).and_then(|v| v.get_index(1)).and_then(|v| v.as_f64()), Some(4.0));
     }
 
     #[test]
     fn parse_array_of_objects() {
-        let input = r#"[{"a":1},{"b":2}]"#;
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse array of objects");
-
-        assert!(matches!(result, JsonValue::Array(_)));
+        let result = parse(r#"[{"a":1},{"b":2}]"#).expect("should parse array of objects");
+        assert_eq!(result.get_index(0).and_then(|v| v.get("a")).and_then(|v| v.as_f64()), Some(1.0));
+        assert_eq!(result.get_index(1).and_then(|v| v.get("b")).and_then(|v| v.as_f64()), Some(2.0));
     }
 
     #[test]
     fn parse_mixed_type_array() {
-        let input = r#"[1,"hello",true,false,null]"#;
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse mixed type array");
-
-        assert!(matches!(result, JsonValue::Array(_)));
+        let result = parse(r#"[1,"hello",true,false,null]"#).expect("should parse mixed type array");
+        assert_eq!(result.get_index(0).and_then(|v| v.as_f64()), Some(1.0));
+        assert_eq!(result.get_index(1).and_then(|v| v.as_str()), Some("hello"));
+        assert_eq!(result.get_index(2).and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(result.get_index(3).and_then(|v| v.as_bool()), Some(false));
+        assert!(result.get_index(4).map(|v| v.is_null()).unwrap_or(false));
     }
 
     #[test]
     fn parse_deeply_nested_objects() {
-        let input = r#"{"a":{"b":{"c":"deep"}}}"#;
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse deeply nested objects");
-
-        assert!(matches!(result, JsonValue::Object(_)));
+        let result = parse(r#"{"a":{"b":{"c":"deep"}}}"#).expect("should parse deeply nested objects");
+        assert_eq!(
+            result.get("a").and_then(|v| v.get("b")).and_then(|v| v.get("c")).and_then(|v| v.as_str()),
+            Some("deep")
+        );
     }
 
     #[test]
     fn parse_object_with_null_value() {
-        let input = r#"{"key":null}"#;
-
-        let result = Parser::new(Lexer::new(input).into_tokens())
-            .parse()
-            .expect("should parse object with null value");
-
-        assert!(matches!(result, JsonValue::Object(_)));
+        let result = parse(r#"{"key":null}"#).expect("should parse object with null value");
+        assert!(result.get("key").map(|v| v.is_null()).unwrap_or(false));
     }
 
     #[test]
     fn parse_unclosed_brace() {
-        let input = r#"{"a":1"#;
-
-        let result = Parser::new(Lexer::new(input).into_tokens()).parse();
-
-        assert!(result.is_err());
+        assert!(parse(r#"{"a":1"#).is_err());
     }
 
     #[test]
     fn parse_unclosed_bracket() {
-        let input = "[1,2,3";
-
-        let result = Parser::new(Lexer::new(input).into_tokens()).parse();
-
-        assert!(result.is_err());
+        assert!(parse("[1,2,3").is_err());
     }
 
     #[test]

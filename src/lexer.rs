@@ -1,9 +1,23 @@
-use crate::Token;
 use std::iter::Peekable;
 
 #[derive(Debug)]
-pub struct Lexer {
+pub(crate) struct Lexer {
     tokens: Vec<Token>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum Token {
+    LeftBrace,
+    RightBrace,
+    LeftBracket,
+    RightBracket,
+    String(String),
+    Number(String),
+    Colon,
+    Comma,
+    True,
+    False,
+    Null,
 }
 
 impl IntoIterator for Lexer {
@@ -52,22 +66,16 @@ impl Lexer {
                 'n' => {
                     if Self::match_keyword(&mut chars, "null") {
                         tokens.push(Token::Null);
-                    } else {
-                        println!("error parsing null");
-                    }
+                    } 
                 }
                 't' => {
                     if Self::match_keyword(&mut chars, "true") {
                         tokens.push(Token::True);
-                    } else {
-                        println!("error parsing true");
                     }
                 }
                 'f' => {
                     if Self::match_keyword(&mut chars, "false") {
                         tokens.push(Token::False);
-                    } else {
-                        println!("error prasing false");
                     }
                 }
                 '"' => {
@@ -111,10 +119,6 @@ impl Lexer {
         }
 
         Lexer { tokens }
-    }
-
-    pub fn tokens(&self) -> &Vec<Token> {
-        &self.tokens
     }
 
     pub fn into_tokens(self) -> Vec<Token> {
@@ -303,8 +307,7 @@ mod tests {
     #[test]
     fn negative_decimal() {
         let tokens = tokenize("-0.5");
-        println!("Tokens in negative decimal {:?} ", tokens);
-
+        
         assert_eq!(tokens.len(), 1);
         match &tokens[0] {
             Token::Number(n) => assert_eq!(n, "-0.5"),

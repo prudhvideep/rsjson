@@ -1,9 +1,9 @@
-use crate::{JsonError, JsonValue, Token};
+use crate::{lexer::Token, JsonError, JsonValue};
 use std::{collections::HashMap, iter::Peekable};
 
 #[derive(Debug)]
-pub struct Parser {
-    pub tokens: Vec<Token>,
+pub(crate) struct Parser {
+    tokens: Vec<Token>,
 }
 
 impl IntoIterator for Parser {
@@ -18,6 +18,11 @@ impl IntoIterator for Parser {
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
         Parser { tokens }
+    }
+
+    fn resolve_number(num_str: &str) -> Result<f64, JsonError> {
+        let num = num_str.parse()?;
+        Ok(num)
     }
 
     fn expect_colon(token_iter: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<(), JsonError> {
@@ -46,7 +51,7 @@ impl Parser {
         let token = token_iter.next().ok_or(JsonError::UnexpectedToken)?;
 
         match token {
-            Token::Number(num) => return Ok(JsonValue::Number(num.to_string())),
+            Token::Number(num) => return Ok(JsonValue::Number(Self::resolve_number(&num)?)),
             _ => Err(JsonError::UnexpectedToken),
         }
     }
@@ -70,12 +75,13 @@ impl Parser {
 
         loop {
             let token = token_iter.next().ok_or(JsonError::UnexpectedToken)?;
-            println!("token in parse array {:?}", token);
             match token {
                 Token::Null => values.push(JsonValue::Null),
                 Token::True => values.push(JsonValue::Boolean(true)),
                 Token::False => values.push(JsonValue::Boolean(false)),
-                Token::Number(num_str) => values.push(JsonValue::Number(num_str.to_string())),
+                Token::Number(num_str) => {
+                    values.push(JsonValue::Number(Self::resolve_number(&num_str)?))
+                }
                 Token::String(str) => values.push(JsonValue::String(str.to_string())),
                 Token::LeftBrace => values.push(Self::parse_object(token_iter)?),
                 Token::LeftBracket => values.push(Self::parse_array(token_iter)?),
@@ -110,18 +116,16 @@ impl Parser {
 
         loop {
             let token = token_iter.next().ok_or(JsonError::UnexpectedToken)?;
-            println!("token in parse object {:?}", token);
 
             match token {
                 Token::String(str) => {
                     let key = str.to_string();
                     Self::expect_colon(token_iter)?;
                     let next_token = token_iter.next().ok_or(JsonError::UnexpectedToken)?;
-                    println!("next token in parse object {:?}", next_token);
                     let value = match next_token {
                         Token::Null => JsonValue::Null,
                         Token::String(str) => JsonValue::String(str),
-                        Token::Number(num) => JsonValue::Number(num),
+                        Token::Number(num_str) => JsonValue::Number(Self::resolve_number(&num_str)?),
                         Token::True | Token::False => {
                             JsonValue::Boolean(matches!(next_token, Token::True))
                         }
