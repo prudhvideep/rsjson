@@ -7,7 +7,7 @@ use std::{collections::HashMap, fmt};
 mod lexer;
 mod parser;
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum JsonValue {
     Object(HashMap<String, JsonValue>),
     Array(Vec<JsonValue>),
@@ -45,22 +45,22 @@ impl JsonValue {
         }
     }
 
-    pub fn get(&self,key : &str) -> Option<&JsonValue> {
+    pub fn get(&self, key: &str) -> Option<&JsonValue> {
         match self {
             JsonValue::Object(map) => map.get(key),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn get_index(&self, index: usize) -> Option<&JsonValue> {
         match self {
             JsonValue::Array(arr) => arr.get(index),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn is_null(&self) -> bool {
-        matches!(self,JsonValue::Null)
+        matches!(self, JsonValue::Null)
     }
 
     fn pretty_print(
@@ -119,7 +119,7 @@ impl JsonValue {
 
 #[derive(Debug)]
 pub enum JsonError {
-    UnexpectedToken{line: usize,col: usize},
+    UnexpectedToken { line: usize, col: usize },
     UnexpectedEof,
     InvalidNumber(std::num::ParseFloatError),
 }
@@ -129,7 +129,7 @@ impl std::error::Error for JsonError {}
 impl fmt::Display for JsonError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            JsonError::UnexpectedToken{ .. } => write!(f, "unexpeted token"),
+            JsonError::UnexpectedToken { .. } => write!(f, "unexpeted token"),
             JsonError::UnexpectedEof => write!(f, "unexpected end of input"),
             JsonError::InvalidNumber(err) => write!(f, "invalid number : {err}"),
         }
@@ -218,9 +218,24 @@ mod parser_tests {
         let result = parse(input).expect("should parse complex json");
         assert_eq!(result.get("name").and_then(|v| v.as_str()), Some("prudhvi"));
         assert_eq!(result.get("age").and_then(|v| v.as_f64()), Some(25.0));
-        assert_eq!(result.get("is_student").and_then(|v| v.as_bool()), Some(false));
-        assert_eq!(result.get("skills").and_then(|v| v.get_index(0)).and_then(|v| v.as_str()), Some("rust"));
-        assert_eq!(result.get("address").and_then(|v| v.get("city")).and_then(|v| v.as_str()), Some("hyderabad"));
+        assert_eq!(
+            result.get("is_student").and_then(|v| v.as_bool()),
+            Some(false)
+        );
+        assert_eq!(
+            result
+                .get("skills")
+                .and_then(|v| v.get_index(0))
+                .and_then(|v| v.as_str()),
+            Some("rust")
+        );
+        assert_eq!(
+            result
+                .get("address")
+                .and_then(|v| v.get("city"))
+                .and_then(|v| v.as_str()),
+            Some("hyderabad")
+        );
     }
 
     #[test]
@@ -249,20 +264,45 @@ mod parser_tests {
     #[test]
     fn parse_nested_arrays() {
         let result = parse("[[1,2],[3,4]]").expect("should parse nested arrays");
-        assert_eq!(result.get_index(0).and_then(|v| v.get_index(0)).and_then(|v| v.as_f64()), Some(1.0));
-        assert_eq!(result.get_index(1).and_then(|v| v.get_index(1)).and_then(|v| v.as_f64()), Some(4.0));
+        assert_eq!(
+            result
+                .get_index(0)
+                .and_then(|v| v.get_index(0))
+                .and_then(|v| v.as_f64()),
+            Some(1.0)
+        );
+        assert_eq!(
+            result
+                .get_index(1)
+                .and_then(|v| v.get_index(1))
+                .and_then(|v| v.as_f64()),
+            Some(4.0)
+        );
     }
 
     #[test]
     fn parse_array_of_objects() {
         let result = parse(r#"[{"a":1},{"b":2}]"#).expect("should parse array of objects");
-        assert_eq!(result.get_index(0).and_then(|v| v.get("a")).and_then(|v| v.as_f64()), Some(1.0));
-        assert_eq!(result.get_index(1).and_then(|v| v.get("b")).and_then(|v| v.as_f64()), Some(2.0));
+        assert_eq!(
+            result
+                .get_index(0)
+                .and_then(|v| v.get("a"))
+                .and_then(|v| v.as_f64()),
+            Some(1.0)
+        );
+        assert_eq!(
+            result
+                .get_index(1)
+                .and_then(|v| v.get("b"))
+                .and_then(|v| v.as_f64()),
+            Some(2.0)
+        );
     }
 
     #[test]
     fn parse_mixed_type_array() {
-        let result = parse(r#"[1,"hello",true,false,null]"#).expect("should parse mixed type array");
+        let result =
+            parse(r#"[1,"hello",true,false,null]"#).expect("should parse mixed type array");
         assert_eq!(result.get_index(0).and_then(|v| v.as_f64()), Some(1.0));
         assert_eq!(result.get_index(1).and_then(|v| v.as_str()), Some("hello"));
         assert_eq!(result.get_index(2).and_then(|v| v.as_bool()), Some(true));
@@ -272,9 +312,14 @@ mod parser_tests {
 
     #[test]
     fn parse_deeply_nested_objects() {
-        let result = parse(r#"{"a":{"b":{"c":"deep"}}}"#).expect("should parse deeply nested objects");
+        let result =
+            parse(r#"{"a":{"b":{"c":"deep"}}}"#).expect("should parse deeply nested objects");
         assert_eq!(
-            result.get("a").and_then(|v| v.get("b")).and_then(|v| v.get("c")).and_then(|v| v.as_str()),
+            result
+                .get("a")
+                .and_then(|v| v.get("b"))
+                .and_then(|v| v.get("c"))
+                .and_then(|v| v.as_str()),
             Some("deep")
         );
     }

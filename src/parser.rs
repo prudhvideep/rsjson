@@ -32,10 +32,10 @@ impl Parser {
                 Ok(())
             }
             Some(token) => {
-                let (line,col) = token.span();
+                let (line, col) = token.span();
                 Err(JsonError::UnexpectedToken { line, col })
             }
-            None => Err(JsonError::UnexpectedEof)
+            None => Err(JsonError::UnexpectedEof),
         }
     }
 
@@ -47,8 +47,8 @@ impl Parser {
         match token {
             Token::String(str, _) => return Ok(JsonValue::String(str.to_string())),
             _ => {
-                let (line,col) = token.span();
-                return Err(JsonError::UnexpectedToken{line,col});
+                let (line, col) = token.span();
+                return Err(JsonError::UnexpectedToken { line, col });
             }
         }
     }
@@ -57,10 +57,10 @@ impl Parser {
         token_iter: &mut Peekable<std::vec::IntoIter<Token>>,
     ) -> Result<JsonValue, JsonError> {
         let token = token_iter.next().ok_or(JsonError::UnexpectedEof)?;
-        let (line,col) = token.span();
+        let (line, col) = token.span();
         match token {
             Token::Number(num, _) => return Ok(JsonValue::Number(Self::resolve_number(&num)?)),
-            _ => Err(JsonError::UnexpectedToken{line,col}),
+            _ => Err(JsonError::UnexpectedToken { line, col }),
         }
     }
 
@@ -68,11 +68,11 @@ impl Parser {
         token_iter: &mut Peekable<std::vec::IntoIter<Token>>,
     ) -> Result<JsonValue, JsonError> {
         let token = token_iter.next().ok_or(JsonError::UnexpectedEof)?;
-        let (line,col) = token.span();
+        let (line, col) = token.span();
         match token {
             Token::True(_) => Ok(JsonValue::Boolean(true)),
             Token::False(_) => Ok(JsonValue::Boolean(false)),
-            _ => Err(JsonError::UnexpectedToken{line,col}),
+            _ => Err(JsonError::UnexpectedToken { line, col }),
         }
     }
 
@@ -83,7 +83,7 @@ impl Parser {
 
         loop {
             let token = token_iter.next().ok_or(JsonError::UnexpectedEof)?;
-            let (line,col) = token.span();
+            let (line, col) = token.span();
             match token {
                 Token::Null(_) => values.push(JsonValue::Null),
                 Token::True(_) => values.push(JsonValue::Boolean(true)),
@@ -100,7 +100,7 @@ impl Parser {
                 Token::Comma(_) => {
                     token_iter.next();
                 }
-                _ => return Err(JsonError::UnexpectedToken{line,col}),
+                _ => return Err(JsonError::UnexpectedToken { line, col }),
             }
 
             match token_iter.peek() {
@@ -112,7 +112,7 @@ impl Parser {
                     break;
                 }
                 Some(token) => {
-                    let (line,col) = token.span();
+                    let (line, col) = token.span();
                     return Err(JsonError::UnexpectedToken { line, col });
                 }
                 _ => return Err(JsonError::UnexpectedEof),
@@ -129,22 +129,26 @@ impl Parser {
 
         loop {
             let token = token_iter.next().ok_or(JsonError::UnexpectedEof)?;
-            let (line,col) = token.span();
+            let (line, col) = token.span();
             match token {
                 Token::String(str, _) => {
                     let key = str.to_string();
                     Self::expect_colon(token_iter)?;
-                    let next_token = token_iter.next().ok_or(JsonError::UnexpectedToken{line,col})?;
+                    let next_token = token_iter
+                        .next()
+                        .ok_or(JsonError::UnexpectedToken { line, col })?;
                     let value = match next_token {
                         Token::Null(_) => JsonValue::Null,
                         Token::String(str, _) => JsonValue::String(str),
-                        Token::Number(num_str, _) => JsonValue::Number(Self::resolve_number(&num_str)?),
+                        Token::Number(num_str, _) => {
+                            JsonValue::Number(Self::resolve_number(&num_str)?)
+                        }
                         Token::True(_) | Token::False(_) => {
                             JsonValue::Boolean(matches!(next_token, Token::True(_)))
                         }
                         Token::LeftBrace(_) => Self::parse_object(token_iter)?,
                         Token::LeftBracket(_) => Self::parse_array(token_iter)?,
-                        _ => return Err(JsonError::UnexpectedToken{line,col}),
+                        _ => return Err(JsonError::UnexpectedToken { line, col }),
                     };
                     object.insert(key, value);
 
@@ -157,9 +161,9 @@ impl Parser {
                             break;
                         }
                         Some(token) => {
-                            let (line,col) = token.span();
+                            let (line, col) = token.span();
                             return Err(JsonError::UnexpectedToken { line, col });
-                        } 
+                        }
                         _ => return Err(JsonError::UnexpectedEof),
                     }
                 }
@@ -198,7 +202,7 @@ impl Parser {
                     value = JsonValue::Null;
                 }
                 _ => {
-                    let (line,col) = token.span();
+                    let (line, col) = token.span();
                     return Err(JsonError::UnexpectedToken { line, col });
                 }
             }
