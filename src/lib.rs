@@ -119,7 +119,7 @@ impl JsonValue {
 
 #[derive(Debug)]
 pub enum JsonError {
-    UnexpectedToken,
+    UnexpectedToken{line: usize,col: usize},
     UnexpectedEof,
     InvalidNumber(std::num::ParseFloatError),
 }
@@ -129,7 +129,7 @@ impl std::error::Error for JsonError {}
 impl fmt::Display for JsonError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            JsonError::UnexpectedToken => write!(f, "unexpeted token"),
+            JsonError::UnexpectedToken{ .. } => write!(f, "unexpeted token"),
             JsonError::UnexpectedEof => write!(f, "unexpected end of input"),
             JsonError::InvalidNumber(err) => write!(f, "invalid number : {err}"),
         }
@@ -151,7 +151,7 @@ pub fn parse(input: &str) -> Result<JsonValue, JsonError> {
 
 #[cfg(test)]
 mod parser_tests {
-    use crate::{parse, JsonValue};
+    use crate::parse;
 
     #[test]
     fn parse_array() {

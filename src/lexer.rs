@@ -5,19 +5,36 @@ pub(crate) struct Lexer {
     tokens: Vec<Token>,
 }
 
+#[derive(Debug,Clone)]
+pub(crate) struct Span {
+    line : usize,
+    col : usize,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum Token {
-    LeftBrace,
-    RightBrace,
-    LeftBracket,
-    RightBracket,
-    String(String),
-    Number(String),
-    Colon,
-    Comma,
-    True,
-    False,
-    Null,
+    LeftBrace(Span),
+    RightBrace(Span),
+    LeftBracket(Span),
+    RightBracket(Span),
+    String(String,Span),
+    Number(String,Span),
+    Colon(Span),
+    Comma(Span),
+    True(Span),
+    False(Span),
+    Null(Span),
+}
+
+impl Token {
+    pub(crate) fn span(&self) -> (usize,usize) {
+        match self {
+            Token::LeftBrace(s) | Token::RightBrace(s) | Token::LeftBracket(s)
+            | Token::RightBracket(s) | Token::Colon(s) | Token::Comma(s)
+            | Token::True(s) | Token::False(s) | Token::Null(s) => (s.line, s.col),
+            Token::String(_, s) | Token::Number(_, s) => (s.line, s.col),
+        }
+    } 
 }
 
 impl IntoIterator for Lexer {
@@ -33,76 +50,100 @@ impl Lexer {
     pub fn new(input: &str) -> Lexer {
         let mut tokens = Vec::new();
         let mut chars = input.chars().peekable();
+        let mut line = 1;
+        let mut col = 1;
 
         while let Some(&c) = chars.peek() {
             match c {
-                ' ' | '\n' | '\t' => {
+                '\n' => {
                     chars.next();
+                    line+=1;
+                    col=1;
+                }
+                ' ' | '\t' => {
+                    chars.next();
+                    col+=1;
                 }
                 '{' => {
-                    tokens.push(Token::LeftBrace);
+                    tokens.push(Token::LeftBrace(Span { line,col }));
                     chars.next();
+                    col+=1;
                 }
                 '}' => {
-                    tokens.push(Token::RightBrace);
+                    tokens.push(Token::RightBrace(Span {line,col}));
                     chars.next();
+                    col+=1;
                 }
                 '[' => {
-                    tokens.push(Token::LeftBracket);
+                    tokens.push(Token::LeftBracket(Span {line,col}));
                     chars.next();
+                    col+=1;
                 }
                 ']' => {
-                    tokens.push(Token::RightBracket);
+                    tokens.push(Token::RightBracket(Span {line,col}));
                     chars.next();
+                    col+=1;
                 }
                 ':' => {
-                    tokens.push(Token::Colon);
+                    tokens.push(Token::Colon(Span { line, col }));
                     chars.next();
+                    col +=1;
                 }
                 ',' => {
-                    tokens.push(Token::Comma);
+                    tokens.push(Token::Comma(Span { line, col }));
                     chars.next();
+                    col +=1;
                 }
                 'n' => {
                     if Self::match_keyword(&mut chars, "null") {
-                        tokens.push(Token::Null);
+                        let start_pos = col;
+                        col+=4;
+                        tokens.push(Token::Null(Span { line, col: start_pos }));
                     } 
                 }
                 't' => {
                     if Self::match_keyword(&mut chars, "true") {
-                        tokens.push(Token::True);
+                        let start_pos = col;
+                        col+=4;
+                        tokens.push(Token::True(Span { line, col: start_pos }));
                     }
                 }
                 'f' => {
                     if Self::match_keyword(&mut chars, "false") {
-                        tokens.push(Token::False);
+                        let start_pos = col;
+                        col+=5;
+                        tokens.push(Token::False(Span { line, col: start_pos }));
                     }
                 }
                 '"' => {
                     //Consume the quote
-                    chars.next();
                     let mut s = String::new();
-
+                    let start_pos = col;
+                    chars.next();col+=1;
                     while let Some(&c) = chars.peek() {
                         if c == '"' {
                             //Consume the quote
                             chars.next();
+                            col+=1;
                             break;
                         }
 
                         s.push(c);
                         chars.next();
+                        col+=1;
                     }
 
-                    tokens.push(Token::String(s));
+                    tokens.push(Token::String(s,Span { line, col:start_pos }));
                 }
                 '0'..='9' | '-' => {
                     let mut s = String::new();
+                    let start_pos = col;
                     while let Some(&c) = chars.peek() {
                         match c {
                             '.' | '+' | '-' | 'E' | 'e' | '0'..='9' => {
                                 s.push(c);
                                 chars.next();
+                                col+=1;
                             }
                             _ => {
                                 break;
@@ -110,10 +151,11 @@ impl Lexer {
                         }
                     }
 
-                    tokens.push(Token::Number(s));
+                    tokens.push(Token::Number(s,Span { line, col :start_pos}));
                 }
                 _ => {
                     chars.next();
+                    col+=1
                 }
             }
         }
@@ -173,7 +215,7 @@ mod tests {
 
         let tokens = tokenize(comma_str);
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::Comma));
+        assert!(matches!(tokens[0], Token::Comma(_)));
     }
 
     #[test]
@@ -182,33 +224,33 @@ mod tests {
 
         let tokens = tokenize(colon_str);
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::Colon));
+        assert!(matches!(tokens[0], Token::Colon(_)));
     }
 
     #[test]
     fn all_bracket_types() {
         let tokens = tokenize("{}[]");
         assert_eq!(tokens.len(), 4);
-        assert!(matches!(tokens[0], Token::LeftBrace));
-        assert!(matches!(tokens[1], Token::RightBrace));
-        assert!(matches!(tokens[2], Token::LeftBracket));
-        assert!(matches!(tokens[3], Token::RightBracket));
+        assert!(matches!(tokens[0], Token::LeftBrace(_)));
+        assert!(matches!(tokens[1], Token::RightBrace(_)));
+        assert!(matches!(tokens[2], Token::LeftBracket(_)));
+        assert!(matches!(tokens[3], Token::RightBracket(_)));
     }
 
     #[test]
     fn keyword_true() {
         let tokens = tokenize("true");
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::True));
+        assert!(matches!(tokens[0], Token::True(_)));
     }
 
     #[test]
     fn all_keywords_together() {
         let tokens = tokenize("true false null");
         assert_eq!(tokens.len(), 3);
-        assert!(matches!(tokens[0], Token::True));
-        assert!(matches!(tokens[1], Token::False));
-        assert!(matches!(tokens[2], Token::Null));
+        assert!(matches!(tokens[0], Token::True(_)));
+        assert!(matches!(tokens[1], Token::False(_)));
+        assert!(matches!(tokens[2], Token::Null(_)));
     }
 
     #[test]
@@ -216,7 +258,7 @@ mod tests {
         let tokens = tokenize(r#""hello""#);
         assert_eq!(tokens.len(), 1);
         match &tokens[0] {
-            Token::String(s) => assert_eq!(s, "hello"),
+            Token::String(s, _) => assert_eq!(s,"hello"),
             _ => panic!("Expected String token"),
         }
     }
@@ -226,7 +268,7 @@ mod tests {
         let tokens = tokenize(r#""""#);
         assert_eq!(tokens.len(), 1);
         match &tokens[0] {
-            Token::String(s) => assert_eq!(s, ""),
+            Token::String(s, _) => assert_eq!(s,""),
             _ => panic!("Expected String token"),
         }
     }
@@ -236,7 +278,7 @@ mod tests {
         let tokens = tokenize(r#""hello world""#);
         assert_eq!(tokens.len(), 1);
         match &tokens[0] {
-            Token::String(s) => assert_eq!(s, "hello world"),
+            Token::String(s, _) => assert_eq!(s,"hello world"),
             _ => panic!("Expected String token"),
         }
     }
@@ -245,7 +287,7 @@ mod tests {
     fn string_with_numbers() {
         let tokens = tokenize(r#""test123""#);
         match &tokens[0] {
-            Token::String(s) => assert_eq!(s, "test123"),
+            Token::String(s, _) => assert_eq!(s,"test123"),
             _ => panic!("Expected String token"),
         }
     }
@@ -255,11 +297,11 @@ mod tests {
         let tokens = tokenize(r#""first" "second" "third""#);
         assert_eq!(tokens.len(), 3);
         match &tokens[0] {
-            Token::String(s) => assert_eq!(s, "first"),
+            Token::String(s, _) => assert_eq!(s,"first"),
             _ => panic!("Expected String token"),
         }
         match &tokens[1] {
-            Token::String(s) => assert_eq!(s, "second"),
+            Token::String(s, _) => assert_eq!(s,"second"),
             _ => panic!("Expected String token"),
         }
     }
@@ -269,7 +311,7 @@ mod tests {
         let tokens = tokenize("42");
         assert_eq!(tokens.len(), 1);
         match &tokens[0] {
-            Token::Number(n) => assert_eq!(n, "42"),
+            Token::Number(n, _) => assert_eq!(n,"42"),
             _ => panic!("Expected Number token"),
         }
     }
@@ -279,7 +321,7 @@ mod tests {
         let tokens = tokenize("-17");
         assert_eq!(tokens.len(), 1);
         match &tokens[0] {
-            Token::Number(n) => assert_eq!(n, "-17"),
+            Token::Number(n, _) => assert_eq!(n,"-17"),
             _ => panic!("Expected Number token"),
         }
     }
@@ -289,7 +331,7 @@ mod tests {
         let tokens = tokenize("0");
         assert_eq!(tokens.len(), 1);
         match &tokens[0] {
-            Token::Number(n) => assert_eq!(n, "0"),
+            Token::Number(n, _) => assert_eq!(n,"0"),
             _ => panic!("Expected Number token"),
         }
     }
@@ -299,7 +341,7 @@ mod tests {
         let tokens = tokenize("3.14");
         assert_eq!(tokens.len(), 1);
         match &tokens[0] {
-            Token::Number(n) => assert_eq!(n, "3.14"),
+            Token::Number(n, _) => assert_eq!(n,"3.14"),
             _ => panic!("Expected Number token"),
         }
     }
@@ -310,7 +352,7 @@ mod tests {
         
         assert_eq!(tokens.len(), 1);
         match &tokens[0] {
-            Token::Number(n) => assert_eq!(n, "-0.5"),
+            Token::Number(n, _) => assert_eq!(n,"-0.5"),
             _ => panic!("Expected Number token"),
         }
     }
@@ -319,7 +361,7 @@ mod tests {
     fn scientific_notation() {
         let tokens = tokenize("1e10");
         match &tokens[0] {
-            Token::Number(n) => assert_eq!(n, "1e10"),
+            Token::Number(n, _) => assert_eq!(n,"1e10"),
             _ => panic!("Expected Number token"),
         }
     }
@@ -328,7 +370,7 @@ mod tests {
     fn scientific_negative_exponent() {
         let tokens = tokenize("2.5e-3");
         match &tokens[0] {
-            Token::Number(n) => assert_eq!(n, "2.5e-3"),
+            Token::Number(n, _) => assert_eq!(n,"2.5e-3"),
             _ => panic!("Expected Number token"),
         }
     }
@@ -337,7 +379,7 @@ mod tests {
     fn scientific_uppercase_e() {
         let tokens = tokenize("1E5");
         match &tokens[0] {
-            Token::Number(n) => assert_eq!(n, "1E5"),
+            Token::Number(n, _) => assert_eq!(n,"1E5"),
             _ => panic!("Expected Number token"),
         }
     }
@@ -346,9 +388,9 @@ mod tests {
     fn simple_key_value_pair() {
         let tokens = tokenize(r#"{"key": "value"}"#);
         assert_eq!(tokens.len(), 5);
-        assert!(matches!(tokens[0], Token::LeftBrace));
-        assert!(matches!(tokens[2], Token::Colon));
-        assert!(matches!(tokens[4], Token::RightBrace));
+        assert!(matches!(tokens[0], Token::LeftBrace(_)));
+        assert!(matches!(tokens[2], Token::Colon(_)));
+        assert!(matches!(tokens[4], Token::RightBrace(_)));
     }
 
     #[test]
@@ -356,11 +398,11 @@ mod tests {
         let tokens = tokenize(r#"{"age": 30}"#);
         assert_eq!(tokens.len(), 5);
         match &tokens[1] {
-            Token::String(s) => assert_eq!(s, "age"),
+            Token::String(s, _) => assert_eq!(s,"age"),
             _ => panic!("Expected String token"),
         }
         match &tokens[3] {
-            Token::Number(n) => assert_eq!(n, "30"),
+            Token::Number(n, _) => assert_eq!(n,"30"),
             _ => panic!("Expected Number token"),
         }
     }
@@ -369,14 +411,14 @@ mod tests {
     fn object_with_boolean() {
         let tokens = tokenize(r#"{"active": true}"#);
         assert_eq!(tokens.len(), 5);
-        assert!(matches!(tokens[3], Token::True));
+        assert!(matches!(tokens[3], Token::True(_)));
     }
 
     #[test]
     fn object_with_null() {
         let tokens = tokenize(r#"{"data": null}"#);
         assert_eq!(tokens.len(), 5);
-        assert!(matches!(tokens[3], Token::Null));
+        assert!(matches!(tokens[3], Token::Null(_)));
     }
 
     #[test]
@@ -385,7 +427,7 @@ mod tests {
         assert_eq!(tokens.len(), 13);
 
         // Count commas
-        let comma_count = tokens.iter().filter(|t| matches!(t, Token::Comma)).count();
+        let comma_count = tokens.iter().filter(|t| matches!(t, Token::Comma(_))).count();
         assert_eq!(comma_count, 2);
     }
 
@@ -394,8 +436,8 @@ mod tests {
         let tokens = tokenize("[1, 2, 3]");
         assert_eq!(tokens.len(), 7);
 
-        assert!(matches!(tokens[0], Token::LeftBracket));
-        assert!(matches!(tokens[6], Token::RightBracket));
+        assert!(matches!(tokens[0], Token::LeftBracket(_)));
+        assert!(matches!(tokens[6], Token::RightBracket(_)));
     }
 
     #[test]
@@ -405,7 +447,7 @@ mod tests {
 
         let string_count = tokens
             .iter()
-            .filter(|t| matches!(t, Token::String(_)))
+            .filter(|t| matches!(t, Token::String(_, _)))
             .count();
         assert_eq!(string_count, 3);
     }
@@ -415,10 +457,10 @@ mod tests {
         let tokens = tokenize(r#"[1, "two", true, null]"#);
         assert_eq!(tokens.len(), 9);
 
-        assert!(matches!(tokens[1], Token::Number(_)));
-        assert!(matches!(tokens[3], Token::String(_)));
-        assert!(matches!(tokens[5], Token::True));
-        assert!(matches!(tokens[7], Token::Null));
+        assert!(matches!(tokens[1], Token::Number(_, _)));
+        assert!(matches!(tokens[3], Token::String(_, _)));
+        assert!(matches!(tokens[5], Token::True(_)));
+        assert!(matches!(tokens[7], Token::Null(_)));
     }
 
     #[test]
@@ -427,11 +469,11 @@ mod tests {
 
         let left_braces = tokens
             .iter()
-            .filter(|t| matches!(t, Token::LeftBrace))
+            .filter(|t| matches!(t, Token::LeftBrace(_)))
             .count();
         let right_braces = tokens
             .iter()
-            .filter(|t| matches!(t, Token::RightBrace))
+            .filter(|t| matches!(t, Token::RightBrace(_)))
             .count();
 
         assert_eq!(left_braces, 2);
@@ -444,11 +486,11 @@ mod tests {
 
         let left_brackets = tokens
             .iter()
-            .filter(|t| matches!(t, Token::LeftBracket))
+            .filter(|t| matches!(t, Token::LeftBracket(_)))
             .count();
         let right_brackets = tokens
             .iter()
-            .filter(|t| matches!(t, Token::RightBracket))
+            .filter(|t| matches!(t, Token::RightBracket(_)))
             .count();
 
         assert_eq!(left_brackets, 3);
@@ -459,8 +501,8 @@ mod tests {
     fn object_with_array_value() {
         let tokens = tokenize(r#"{"numbers": [1, 2, 3]}"#);
 
-        assert!(tokens.iter().any(|t| matches!(t, Token::LeftBrace)));
-        assert!(tokens.iter().any(|t| matches!(t, Token::LeftBracket)));
+        assert!(tokens.iter().any(|t| matches!(t, Token::LeftBrace(_))));
+        assert!(tokens.iter().any(|t| matches!(t, Token::LeftBracket(_))));
     }
 
     #[test]
@@ -469,7 +511,7 @@ mod tests {
 
         let brace_count = tokens
             .iter()
-            .filter(|t| matches!(t, Token::LeftBrace))
+            .filter(|t| matches!(t, Token::LeftBrace(_)))
             .count();
         assert_eq!(brace_count, 2);
     }
@@ -488,8 +530,8 @@ mod tests {
     }"#;
         let tokens = tokenize(input);
 
-        assert!(matches!(tokens[0], Token::LeftBrace));
-        assert!(tokens.iter().any(|t| matches!(t, Token::Comma)));
+        assert!(matches!(tokens[0], Token::LeftBrace(_)));
+        assert!(tokens.iter().any(|t| matches!(t, Token::Comma(_))));
     }
 
     #[test]
@@ -510,7 +552,7 @@ mod tests {
 
         let brace_count = tokens
             .iter()
-            .filter(|t| matches!(t, Token::LeftBrace))
+            .filter(|t| matches!(t, Token::LeftBrace(_)))
             .count();
         assert_eq!(brace_count, 4);
     }
@@ -528,11 +570,11 @@ mod tests {
         let tokens = tokenize(input);
 
         // Should have 5 colons (one per key-value pair)
-        let colon_count = tokens.iter().filter(|t| matches!(t, Token::Colon)).count();
+        let colon_count = tokens.iter().filter(|t| matches!(t, Token::Colon(_))).count();
         assert_eq!(colon_count, 5);
 
         // Should have 4 commas (between pairs)
-        let comma_count = tokens.iter().filter(|t| matches!(t, Token::Comma)).count();
+        let comma_count = tokens.iter().filter(|t| matches!(t, Token::Comma(_))).count();
         assert_eq!(comma_count, 4);
     }
 
@@ -542,7 +584,7 @@ mod tests {
 
         let number_count = tokens
             .iter()
-            .filter(|t| matches!(t, Token::Number(_)))
+            .filter(|t| matches!(t, Token::Number(_, _)))
             .count();
         assert_eq!(number_count, 10);
     }
@@ -554,19 +596,19 @@ mod tests {
 
         let left_braces = tokens
             .iter()
-            .filter(|t| matches!(t, Token::LeftBrace))
+            .filter(|t| matches!(t, Token::LeftBrace(_)))
             .count();
         let right_braces = tokens
             .iter()
-            .filter(|t| matches!(t, Token::RightBrace))
+            .filter(|t| matches!(t, Token::RightBrace(_)))
             .count();
         let left_brackets = tokens
             .iter()
-            .filter(|t| matches!(t, Token::LeftBracket))
+            .filter(|t| matches!(t, Token::LeftBracket(_)))
             .count();
         let right_brackets = tokens
             .iter()
-            .filter(|t| matches!(t, Token::RightBracket))
+            .filter(|t| matches!(t, Token::RightBracket(_)))
             .count();
 
         assert_eq!(left_braces, right_braces);
@@ -577,18 +619,18 @@ mod tests {
     fn token_order_in_simple_object() {
         let tokens = tokenize(r#"{"key": "value"}"#);
 
-        assert!(matches!(tokens[0], Token::LeftBrace));
-        assert!(matches!(tokens[1], Token::String(_)));
-        assert!(matches!(tokens[2], Token::Colon));
-        assert!(matches!(tokens[3], Token::String(_)));
-        assert!(matches!(tokens[4], Token::RightBrace));
+        assert!(matches!(tokens[0], Token::LeftBrace(_)));
+        assert!(matches!(tokens[1], Token::String(_, _)));
+        assert!(matches!(tokens[2], Token::Colon(_)));
+        assert!(matches!(tokens[3], Token::String(_, _)));
+        assert!(matches!(tokens[4], Token::RightBrace(_)));
     }
 
     #[test]
     fn large_number() {
         let tokens = tokenize("123456789");
         match &tokens[0] {
-            Token::Number(n) => assert_eq!(n, "123456789"),
+            Token::Number(n, _) => assert_eq!(n,"123456789"),
             _ => panic!("Expected Number token"),
         }
     }
@@ -597,7 +639,7 @@ mod tests {
     fn decimal_with_many_digits() {
         let tokens = tokenize("3.141592653589793");
         match &tokens[0] {
-            Token::Number(n) => assert_eq!(n, "3.141592653589793"),
+            Token::Number(n, _) => assert_eq!(n,"3.141592653589793"),
             _ => panic!("Expected Number token"),
         }
     }
