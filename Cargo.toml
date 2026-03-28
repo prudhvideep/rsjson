@@ -8,4 +8,7 @@ repository = "https://github.com/prudhvideep/rsjson"
 keywords = ["json", "parser", "serialization"]
 categories = ["parser-implementations", "encoding"]
 
+[workspace]
+members = ["rsjson-wasm"]
+
 [dependencies]

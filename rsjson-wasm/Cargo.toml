@@ -1,0 +1,12 @@
+[package]
+name = "rsjson-wasm"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+rsjson = {path = ".."}
+wasm-bindgen = "0.2"
