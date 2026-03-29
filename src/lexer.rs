@@ -133,7 +133,7 @@ impl Lexer {
                 '"' => {
                     //Consume the quote
                     let mut s = String::new();
-                    let start_pos = col;
+                    let start_pos: usize = col;
                     chars.next();
                     col += 1;
                     while let Some(&c) = chars.peek() {
@@ -141,7 +141,13 @@ impl Lexer {
                             //Consume the quote
                             chars.next();
                             col += 1;
-                            break;
+                            
+                            if s.chars().last() != Some('\\') {
+                                break;
+                            } else {
+                                s.push(c);
+                                continue;
+                            }
                         }
 
                         s.push(c);
@@ -678,6 +684,15 @@ mod tests {
         match &tokens[0] {
             Token::Number(n, _) => assert_eq!(n, "3.141592653589793"),
             _ => panic!("Expected Number token"),
+        }
+    }
+
+    #[test]
+    fn escaped_quotes_and_special_chars() {
+        let input = r#"{"text\"dsds\"": "Line1\nLine2\tTabbed \"quoted\" text \\ backslash", "unicode": "☃ ❤", "valid": true}"#;
+        let tokens = tokenize(input);
+        for token in &tokens {
+            println!("{:?}", token);
         }
     }
 }

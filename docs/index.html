@@ -130,9 +130,12 @@
             color: #ef4444;
         }
 
-        .output.success {
-            color: #a3e635;
-        }
+        .json-key { color: #7dd3fc; }
+        .json-string { color: #a3e635; }
+        .json-number { color: #fbbf24; }
+        .json-bool { color: #c084fc; }
+        .json-null { color: #6b7280; font-style: italic; }
+        .json-brace { color: #737373; }
 
         .status {
             padding: 12px 32px;
@@ -141,6 +144,24 @@
             color: #404040;
             display: flex;
             justify-content: space-between;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #525252;
         }
 
         @media (max-width: 768px) {
@@ -182,13 +203,32 @@
 
         await init();
 
+        function highlight(json) {
+            return json.replace(
+                /("(?:\\.|[^"\\])*")\s*:|("(?:\\.|[^"\\])*")|([-+]?\d+\.?\d*(?:[eE][-+]?\d+)?)|(\btrue\b|\bfalse\b)|(\bnull\b)|([{}[\],])/g,
+                (match, key, str, num, bool, nil, brace) => {
+                    if (key) return `<span class="json-key">${esc(key)}</span>:`;
+                    if (str) return `<span class="json-string">${esc(str)}</span>`;
+                    if (num) return `<span class="json-number">${esc(num)}</span>`;
+                    if (bool) return `<span class="json-bool">${esc(bool)}</span>`;
+                    if (nil) return `<span class="json-null">${esc(nil)}</span>`;
+                    if (brace) return `<span class="json-brace">${esc(brace)}</span>`;
+                    return esc(match);
+                }
+            );
+        }
+
+        function esc(s) {
+            return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
         window.formatJson = () => {
             const input = document.getElementById('input').value.trim();
             const output = document.getElementById('output');
             const status = document.getElementById('status-msg');
 
             if (!input) {
-                output.textContent = '';
+                output.innerHTML = '';
                 output.className = 'output';
                 status.textContent = 'Ready';
                 return;
@@ -200,8 +240,13 @@
                             result.startsWith('unexpe') ||
                             result.startsWith('invalid');
 
-            output.textContent = result;
-            output.className = isError ? 'output error' : 'output success';
+            if (isError) {
+                output.textContent = result;
+                output.className = 'output error';
+            } else {
+                output.innerHTML = highlight(result);
+                output.className = 'output';
+            }
             status.textContent = isError ? 'Parse error' : 'Formatted';
         };
 

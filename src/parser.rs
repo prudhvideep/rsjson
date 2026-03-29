@@ -133,6 +133,10 @@ impl Parser {
             match token {
                 Token::String(str, _) => {
                     let key = str.to_string();
+                    if let Some(_object_key) = object.get(&key) {
+                        return Err(JsonError::DuplicateKey(key));
+                    }
+
                     Self::expect_colon(token_iter)?;
                     let next_token = token_iter
                         .next()
