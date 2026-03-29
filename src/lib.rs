@@ -130,7 +130,7 @@ impl std::error::Error for JsonError {}
 impl fmt::Display for JsonError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            JsonError::UnexpectedToken { .. } => write!(f, "unexpeted token"),
+            JsonError::UnexpectedToken { line,col } => write!(f, "unexpeted token at line {line}, col {col}"),
             JsonError::UnexpectedEof => write!(f, "unexpected end of input"),
             JsonError::InvalidNumber(err) => write!(f, "invalid number : {err}"),
             JsonError::DuplicateKey(key) => write!(f, "Duplicate key : {key}"),
