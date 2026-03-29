@@ -141,12 +141,25 @@ impl Lexer {
                             //Consume the quote
                             chars.next();
                             col += 1;
-                            
+
                             if s.chars().last() != Some('\\') {
                                 break;
                             } else {
-                                s.push(c);
-                                continue;
+                                let mut back_slash_count = 0;
+                                for c in s.chars().rev() {
+                                    if c == '\\' {
+                                        back_slash_count += 1;
+                                    } else {
+                                        break;
+                                    }
+                                }
+
+                                if back_slash_count % 2 != 0 {
+                                    s.push(c);
+                                    continue;
+                                } else {
+                                    break;
+                                }
                             }
                         }
 
@@ -684,6 +697,15 @@ mod tests {
         match &tokens[0] {
             Token::Number(n, _) => assert_eq!(n, "3.141592653589793"),
             _ => panic!("Expected Number token"),
+        }
+    }
+
+    #[test]
+    fn deeply_nested_mixed_structure() {
+        let input = r#"{"a":[{"b":[{"c":[{"d":[{"e":[{"f":"end"}]}]}]}]}],"x":{"y":{"z":[{"k1":1},{"k2":[2,3,{"k3":"v3"}]}]}},"misc":"\n\t\r\"\\","bools":[true,false,true],"nullish":null}"#;
+        let tokens = tokenize(input);
+        for token in &tokens {
+            println!("{:?}", token);
         }
     }
 

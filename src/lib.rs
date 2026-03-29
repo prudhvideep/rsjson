@@ -122,7 +122,7 @@ pub enum JsonError {
     UnexpectedToken { line: usize, col: usize },
     UnexpectedEof,
     InvalidNumber(std::num::ParseFloatError),
-    DuplicateKey(String)
+    DuplicateKey(String),
 }
 
 impl std::error::Error for JsonError {}
@@ -133,7 +133,7 @@ impl fmt::Display for JsonError {
             JsonError::UnexpectedToken { .. } => write!(f, "unexpeted token"),
             JsonError::UnexpectedEof => write!(f, "unexpected end of input"),
             JsonError::InvalidNumber(err) => write!(f, "invalid number : {err}"),
-            JsonError::DuplicateKey(key) => write!(f, "Duplicate key : {key}")
+            JsonError::DuplicateKey(key) => write!(f, "Duplicate key : {key}"),
         }
     }
 }
