@@ -84,6 +84,7 @@ impl Parser {
         loop {
             let token = token_iter.next().ok_or(JsonError::UnexpectedEof)?;
             let (line, col) = token.span();
+            println!("Token here {:?}",token);
             match token {
                 Token::Null(_) => values.push(JsonValue::Null),
                 Token::True(_) => values.push(JsonValue::Boolean(true)),
@@ -96,9 +97,6 @@ impl Parser {
                 Token::LeftBracket(_) => values.push(Self::parse_array(token_iter)?),
                 Token::RightBracket(_) => {
                     break;
-                }
-                Token::Comma(_) => {
-                    token_iter.next();
                 }
                 _ => return Err(JsonError::UnexpectedToken { line, col }),
             }

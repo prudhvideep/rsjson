@@ -146,8 +146,9 @@ impl From<std::num::ParseFloatError> for JsonError {
 
 pub fn parse(input: &str) -> Result<JsonValue, JsonError> {
     let tokens: Vec<Token> = Lexer::new(input).into_tokens();
+    dbg!(&tokens);
     let parser: Parser = Parser::new(tokens);
-
+     
     Ok(parser.parse()?)
 }
 
@@ -330,6 +331,11 @@ mod parser_tests {
     fn parse_object_with_null_value() {
         let result = parse(r#"{"key":null}"#).expect("should parse object with null value");
         assert!(result.get("key").map(|v| v.is_null()).unwrap_or(false));
+    }
+
+    #[test]
+    fn parse_array_with_consecutive_commas() {
+        assert!(parse(r#"[1,,3,"a"]"#).is_err());
     }
 
     #[test]
