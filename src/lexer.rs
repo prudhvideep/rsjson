@@ -5,42 +5,29 @@ pub(crate) struct Lexer {
     tokens: Vec<Token>,
 }
 
+#[repr(u8)]
 #[derive(Debug, Clone)]
-pub(crate) struct Span {
-    line: usize,
-    col: usize,
+pub(crate) enum TokenKind {
+    LeftBrace,
+    RightBrace,
+    LeftBracket,
+    RightBracket,
+    String,
+    Number,
+    Colon,
+    Comma,
+    True,
+    False,
+    Null,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum Token {
-    LeftBrace(Span),
-    RightBrace(Span),
-    LeftBracket(Span),
-    RightBracket(Span),
-    String(String, Span),
-    Number(String, Span),
-    Colon(Span),
-    Comma(Span),
-    True(Span),
-    False(Span),
-    Null(Span),
-}
-
-impl Token {
-    pub(crate) fn span(&self) -> (usize, usize) {
-        match self {
-            Token::LeftBrace(s)
-            | Token::RightBrace(s)
-            | Token::LeftBracket(s)
-            | Token::RightBracket(s)
-            | Token::Colon(s)
-            | Token::Comma(s)
-            | Token::True(s)
-            | Token::False(s)
-            | Token::Null(s) => (s.line, s.col),
-            Token::String(_, s) | Token::Number(_, s) => (s.line, s.col),
-        }
-    }
+pub(crate) struct Token {
+    pub(crate) kind: TokenKind,
+    pub(crate) start: u32,
+    pub(crate) end: u32,
+    pub(crate) line: u32,
+    pub(crate) col: u32,
 }
 
 impl IntoIterator for Lexer {
@@ -56,6 +43,7 @@ impl Lexer {
     pub fn new(input: &str) -> Lexer {
         let mut tokens = Vec::new();
         let mut chars = input.chars().peekable();
+        let mut start_pos = 0;
         let mut line = 1;
         let mut col = 1;
 
@@ -63,84 +51,144 @@ impl Lexer {
             match c {
                 '\n' => {
                     chars.next();
+                    start_pos += 1;
                     line += 1;
                     col = 1;
                 }
                 ' ' | '\t' => {
                     chars.next();
+                    start_pos += 1;
                     col += 1;
                 }
                 '{' => {
-                    tokens.push(Token::LeftBrace(Span { line, col }));
+                    tokens.push(Token {
+                        kind: TokenKind::LeftBrace,
+                        start: start_pos,
+                        end: start_pos + 1,
+                        line,
+                        col,
+                    });
                     chars.next();
+                    start_pos += 1;
                     col += 1;
                 }
                 '}' => {
-                    tokens.push(Token::RightBrace(Span { line, col }));
+                    tokens.push(Token {
+                        kind: TokenKind::RightBrace,
+                        start: start_pos,
+                        end: start_pos + 1,
+                        line,
+                        col,
+                    });
                     chars.next();
+                    start_pos += 1;
                     col += 1;
                 }
                 '[' => {
-                    tokens.push(Token::LeftBracket(Span { line, col }));
+                    tokens.push(Token {
+                        kind: TokenKind::LeftBracket,
+                        start: start_pos,
+                        end: start_pos + 1,
+                        line,
+                        col,
+                    });
                     chars.next();
+                    start_pos += 1;
                     col += 1;
                 }
                 ']' => {
-                    tokens.push(Token::RightBracket(Span { line, col }));
+                    tokens.push(Token {
+                        kind: TokenKind::RightBracket,
+                        start: start_pos,
+                        end: start_pos + 1,
+                        line,
+                        col,
+                    });
                     chars.next();
+                    start_pos += 1;
                     col += 1;
                 }
                 ':' => {
-                    tokens.push(Token::Colon(Span { line, col }));
+                    tokens.push(Token {
+                        kind: TokenKind::Colon,
+                        start: start_pos,
+                        end: start_pos + 1,
+                        line,
+                        col,
+                    });
                     chars.next();
+                    start_pos += 1;
                     col += 1;
                 }
                 ',' => {
-                    tokens.push(Token::Comma(Span { line, col }));
+                    tokens.push(Token {
+                        kind: TokenKind::Comma,
+                        start: start_pos,
+                        end: start_pos + 1,
+                        line,
+                        col,
+                    });
                     chars.next();
+                    start_pos += 1;
                     col += 1;
                 }
                 'n' => {
-                    if Self::match_keyword(&mut chars, "null") {
-                        let start_pos = col;
-                        col += 4;
-                        tokens.push(Token::Null(Span {
+                    let init_pos = start_pos;
+                    let col_pos: u32 = col;
+                    if Self::match_keyword(&mut chars, "null", &mut start_pos, &mut col) {
+                        tokens.push(Token {
+                            kind: TokenKind::Null,
+                            start: init_pos,
+                            end: start_pos,
                             line,
-                            col: start_pos,
-                        }));
+                            col: col_pos,
+                        });
                     }
                 }
                 't' => {
-                    if Self::match_keyword(&mut chars, "true") {
-                        let start_pos = col;
-                        col += 4;
-                        tokens.push(Token::True(Span {
+                    let init_pos = start_pos;
+                    let col_pos: u32 = col;
+                    if Self::match_keyword(&mut chars, "true", &mut start_pos, &mut col) {
+                        tokens.push(Token {
+                            kind: TokenKind::True,
+                            start: init_pos,
+                            end: start_pos,
                             line,
-                            col: start_pos,
-                        }));
+                            col: col_pos,
+                        });
                     }
                 }
                 'f' => {
-                    if Self::match_keyword(&mut chars, "false") {
-                        let start_pos = col;
-                        col += 5;
-                        tokens.push(Token::False(Span {
+                    let init_pos = start_pos;
+                    let col_pos = col;
+                    if Self::match_keyword(&mut chars, "false", &mut start_pos, &mut col) {
+                        tokens.push(Token {
+                            kind: TokenKind::False,
+                            start: init_pos,
+                            end: start_pos,
                             line,
-                            col: start_pos,
-                        }));
+                            col: col_pos,
+                        });
                     }
                 }
                 '"' => {
                     //Consume the quote
                     let mut s = String::new();
-                    let start_pos: usize = col;
+                    let col_pos = col;
+
                     chars.next();
                     col += 1;
+                    start_pos += 1;
+                    let init_pos = start_pos;
+                    let mut content_end = start_pos;
+
                     while let Some(&c) = chars.peek() {
                         if c == '"' {
                             //Consume the quote
+                            content_end = start_pos;
                             chars.next();
                             col += 1;
+                            start_pos += 1;
 
                             if s.chars().last() != Some('\\') {
                                 break;
@@ -166,25 +214,26 @@ impl Lexer {
                         s.push(c);
                         chars.next();
                         col += 1;
+                        start_pos += 1;
                     }
 
-                    tokens.push(Token::String(
-                        s,
-                        Span {
-                            line,
-                            col: start_pos,
-                        },
-                    ));
+                    tokens.push(Token {
+                        kind: TokenKind::String,
+                        start: init_pos,
+                        end: content_end,
+                        line,
+                        col: col_pos,
+                    });
                 }
                 '0'..='9' | '-' => {
-                    let mut s = String::new();
-                    let start_pos = col;
+                    let col_pos = col;
+                    let init_pos = start_pos;
                     while let Some(&c) = chars.peek() {
                         match c {
                             '.' | '+' | '-' | 'E' | 'e' | '0'..='9' => {
-                                s.push(c);
                                 chars.next();
                                 col += 1;
+                                start_pos += 1
                             }
                             _ => {
                                 break;
@@ -192,17 +241,18 @@ impl Lexer {
                         }
                     }
 
-                    tokens.push(Token::Number(
-                        s,
-                        Span {
-                            line,
-                            col: start_pos,
-                        },
-                    ));
+                    tokens.push(Token {
+                        kind: TokenKind::Number,
+                        start: init_pos,
+                        end: start_pos,
+                        line,
+                        col: col_pos,
+                    });
                 }
                 _ => {
                     chars.next();
-                    col += 1
+                    col += 1;
+                    start_pos += 1;
                 }
             }
         }
@@ -214,16 +264,25 @@ impl Lexer {
         self.tokens
     }
 
-    fn match_keyword(chars: &mut Peekable<std::str::Chars>, keyword: &str) -> bool {
+    fn match_keyword(
+        chars: &mut Peekable<std::str::Chars>,
+        keyword: &str,
+        start_pos: &mut u32,
+        col: &mut u32,
+    ) -> bool {
         for (i, expected_char) in keyword.chars().enumerate() {
             if i == 0 {
                 chars.next();
+                *start_pos += 1;
+                *col += 1;
                 continue;
             }
 
             match chars.peek() {
                 Some(&c) if c == expected_char => {
                     chars.next();
+                    *start_pos += 1;
+                    *col += 1;
                 }
                 _ => return false,
             }
@@ -240,232 +299,202 @@ mod tests {
         Lexer::new(input).into_tokens()
     }
 
+    fn lexeme<'a>(input: &'a str, t: &Token) -> &'a str {
+        &input[t.start as usize..t.end as usize]
+    }
+
+    fn kinds_eq(actual: &TokenKind, expected: &TokenKind) -> bool {
+        std::mem::discriminant(actual) == std::mem::discriminant(expected)
+    }
+
     #[test]
     fn empty_objects() {
-        let empty_object = r##"{}"##;
-
-        let tokens = tokenize(empty_object);
+        let tokens = tokenize("{}");
         assert_eq!(tokens.len(), 2);
     }
 
     #[test]
     fn empty_array() {
-        let empty_array = r##"[]"##;
-
-        let tokens = tokenize(empty_array);
+        let tokens = tokenize("[]");
         assert_eq!(tokens.len(), 2);
     }
 
     #[test]
     fn single_comma() {
-        let comma_str = r##","##;
-
-        let tokens = tokenize(comma_str);
+        let tokens = tokenize(",");
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::Comma(_)));
+        assert!(matches!(tokens[0].kind, TokenKind::Comma));
     }
 
     #[test]
     fn single_colon() {
-        let colon_str = r##":"##;
-
-        let tokens = tokenize(colon_str);
+        let tokens = tokenize(":");
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::Colon(_)));
+        assert!(matches!(tokens[0].kind, TokenKind::Colon));
     }
 
     #[test]
     fn all_bracket_types() {
         let tokens = tokenize("{}[]");
         assert_eq!(tokens.len(), 4);
-        assert!(matches!(tokens[0], Token::LeftBrace(_)));
-        assert!(matches!(tokens[1], Token::RightBrace(_)));
-        assert!(matches!(tokens[2], Token::LeftBracket(_)));
-        assert!(matches!(tokens[3], Token::RightBracket(_)));
+        assert!(matches!(tokens[0].kind, TokenKind::LeftBrace));
+        assert!(matches!(tokens[1].kind, TokenKind::RightBrace));
+        assert!(matches!(tokens[2].kind, TokenKind::LeftBracket));
+        assert!(matches!(tokens[3].kind, TokenKind::RightBracket));
     }
 
     #[test]
     fn keyword_true() {
         let tokens = tokenize("true");
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::True(_)));
+        assert!(matches!(tokens[0].kind, TokenKind::True));
     }
 
     #[test]
     fn all_keywords_together() {
         let tokens = tokenize("true false null");
         assert_eq!(tokens.len(), 3);
-        assert!(matches!(tokens[0], Token::True(_)));
-        assert!(matches!(tokens[1], Token::False(_)));
-        assert!(matches!(tokens[2], Token::Null(_)));
+        assert!(matches!(tokens[0].kind, TokenKind::True));
+        assert!(matches!(tokens[1].kind, TokenKind::False));
+        assert!(matches!(tokens[2].kind, TokenKind::Null));
     }
 
     #[test]
     fn simple_string() {
         let tokens = tokenize(r#""hello""#);
         assert_eq!(tokens.len(), 1);
-        match &tokens[0] {
-            Token::String(s, _) => assert_eq!(s, "hello"),
-            _ => panic!("Expected String token"),
-        }
+        assert!(matches!(tokens[0].kind, TokenKind::String));
     }
 
     #[test]
     fn empty_string() {
         let tokens = tokenize(r#""""#);
         assert_eq!(tokens.len(), 1);
-        match &tokens[0] {
-            Token::String(s, _) => assert_eq!(s, ""),
-            _ => panic!("Expected String token"),
-        }
+        assert!(matches!(tokens[0].kind, TokenKind::String));
     }
 
     #[test]
     fn string_with_spaces() {
         let tokens = tokenize(r#""hello world""#);
         assert_eq!(tokens.len(), 1);
-        match &tokens[0] {
-            Token::String(s, _) => assert_eq!(s, "hello world"),
-            _ => panic!("Expected String token"),
-        }
+        assert!(matches!(tokens[0].kind, TokenKind::String));
     }
 
     #[test]
     fn string_with_numbers() {
         let tokens = tokenize(r#""test123""#);
-        match &tokens[0] {
-            Token::String(s, _) => assert_eq!(s, "test123"),
-            _ => panic!("Expected String token"),
-        }
+        assert!(matches!(tokens[0].kind, TokenKind::String));
     }
 
     #[test]
     fn multiple_strings() {
         let tokens = tokenize(r#""first" "second" "third""#);
         assert_eq!(tokens.len(), 3);
-        match &tokens[0] {
-            Token::String(s, _) => assert_eq!(s, "first"),
-            _ => panic!("Expected String token"),
-        }
-        match &tokens[1] {
-            Token::String(s, _) => assert_eq!(s, "second"),
-            _ => panic!("Expected String token"),
-        }
+        assert!(matches!(tokens[0].kind, TokenKind::String));
+        assert!(matches!(tokens[1].kind, TokenKind::String));
+        assert!(matches!(tokens[2].kind, TokenKind::String));
     }
 
     #[test]
     fn positive_integer() {
-        let tokens = tokenize("42");
+        let input = "42";
+        let tokens = tokenize(input);
         assert_eq!(tokens.len(), 1);
-        match &tokens[0] {
-            Token::Number(n, _) => assert_eq!(n, "42"),
-            _ => panic!("Expected Number token"),
-        }
+        assert!(matches!(tokens[0].kind, TokenKind::Number));
+        assert_eq!(lexeme(input, &tokens[0]), "42");
     }
 
     #[test]
     fn negative_integer() {
-        let tokens = tokenize("-17");
+        let input = "-17";
+        let tokens = tokenize(input);
         assert_eq!(tokens.len(), 1);
-        match &tokens[0] {
-            Token::Number(n, _) => assert_eq!(n, "-17"),
-            _ => panic!("Expected Number token"),
-        }
+        assert!(matches!(tokens[0].kind, TokenKind::Number));
+        assert_eq!(lexeme(input, &tokens[0]), "-17");
     }
 
     #[test]
     fn zero() {
-        let tokens = tokenize("0");
+        let input = "0";
+        let tokens = tokenize(input);
         assert_eq!(tokens.len(), 1);
-        match &tokens[0] {
-            Token::Number(n, _) => assert_eq!(n, "0"),
-            _ => panic!("Expected Number token"),
-        }
+        assert!(matches!(tokens[0].kind, TokenKind::Number));
+        assert_eq!(lexeme(input, &tokens[0]), "0");
     }
 
     #[test]
     fn decimal_number() {
-        let tokens = tokenize("3.14");
+        let input = "3.14";
+        let tokens = tokenize(input);
         assert_eq!(tokens.len(), 1);
-        match &tokens[0] {
-            Token::Number(n, _) => assert_eq!(n, "3.14"),
-            _ => panic!("Expected Number token"),
-        }
+        assert!(matches!(tokens[0].kind, TokenKind::Number));
+        assert_eq!(lexeme(input, &tokens[0]), "3.14");
     }
 
     #[test]
     fn negative_decimal() {
-        let tokens = tokenize("-0.5");
-
+        let input = "-0.5";
+        let tokens = tokenize(input);
         assert_eq!(tokens.len(), 1);
-        match &tokens[0] {
-            Token::Number(n, _) => assert_eq!(n, "-0.5"),
-            _ => panic!("Expected Number token"),
-        }
+        assert!(matches!(tokens[0].kind, TokenKind::Number));
+        assert_eq!(lexeme(input, &tokens[0]), "-0.5");
     }
 
     #[test]
     fn scientific_notation() {
-        let tokens = tokenize("1e10");
-        match &tokens[0] {
-            Token::Number(n, _) => assert_eq!(n, "1e10"),
-            _ => panic!("Expected Number token"),
-        }
+        let input = "1e10";
+        let tokens = tokenize(input);
+        assert!(matches!(tokens[0].kind, TokenKind::Number));
+        assert_eq!(lexeme(input, &tokens[0]), "1e10");
     }
 
     #[test]
     fn scientific_negative_exponent() {
-        let tokens = tokenize("2.5e-3");
-        match &tokens[0] {
-            Token::Number(n, _) => assert_eq!(n, "2.5e-3"),
-            _ => panic!("Expected Number token"),
-        }
+        let input = "2.5e-3";
+        let tokens = tokenize(input);
+        assert!(matches!(tokens[0].kind, TokenKind::Number));
+        assert_eq!(lexeme(input, &tokens[0]), "2.5e-3");
     }
 
     #[test]
     fn scientific_uppercase_e() {
-        let tokens = tokenize("1E5");
-        match &tokens[0] {
-            Token::Number(n, _) => assert_eq!(n, "1E5"),
-            _ => panic!("Expected Number token"),
-        }
+        let input = "1E5";
+        let tokens = tokenize(input);
+        assert!(matches!(tokens[0].kind, TokenKind::Number));
+        assert_eq!(lexeme(input, &tokens[0]), "1E5");
     }
 
     #[test]
     fn simple_key_value_pair() {
         let tokens = tokenize(r#"{"key": "value"}"#);
         assert_eq!(tokens.len(), 5);
-        assert!(matches!(tokens[0], Token::LeftBrace(_)));
-        assert!(matches!(tokens[2], Token::Colon(_)));
-        assert!(matches!(tokens[4], Token::RightBrace(_)));
+        assert!(matches!(tokens[0].kind, TokenKind::LeftBrace));
+        assert!(matches!(tokens[2].kind, TokenKind::Colon));
+        assert!(matches!(tokens[4].kind, TokenKind::RightBrace));
     }
 
     #[test]
     fn object_with_number_value() {
-        let tokens = tokenize(r#"{"age": 30}"#);
+        let input = r#"{"age": 30}"#;
+        let tokens = tokenize(input);
         assert_eq!(tokens.len(), 5);
-        match &tokens[1] {
-            Token::String(s, _) => assert_eq!(s, "age"),
-            _ => panic!("Expected String token"),
-        }
-        match &tokens[3] {
-            Token::Number(n, _) => assert_eq!(n, "30"),
-            _ => panic!("Expected Number token"),
-        }
+        assert!(matches!(tokens[1].kind, TokenKind::String));
+        assert!(matches!(tokens[3].kind, TokenKind::Number));
+        assert_eq!(lexeme(input, &tokens[3]), "30");
     }
 
     #[test]
     fn object_with_boolean() {
         let tokens = tokenize(r#"{"active": true}"#);
         assert_eq!(tokens.len(), 5);
-        assert!(matches!(tokens[3], Token::True(_)));
+        assert!(matches!(tokens[3].kind, TokenKind::True));
     }
 
     #[test]
     fn object_with_null() {
         let tokens = tokenize(r#"{"data": null}"#);
         assert_eq!(tokens.len(), 5);
-        assert!(matches!(tokens[3], Token::Null(_)));
+        assert!(matches!(tokens[3].kind, TokenKind::Null));
     }
 
     #[test]
@@ -473,10 +502,9 @@ mod tests {
         let tokens = tokenize(r#"{"a": 1, "b": 2, "c": 3}"#);
         assert_eq!(tokens.len(), 13);
 
-        // Count commas
         let comma_count = tokens
             .iter()
-            .filter(|t| matches!(t, Token::Comma(_)))
+            .filter(|t| matches!(t.kind, TokenKind::Comma))
             .count();
         assert_eq!(comma_count, 2);
     }
@@ -485,9 +513,8 @@ mod tests {
     fn array_of_numbers() {
         let tokens = tokenize("[1, 2, 3]");
         assert_eq!(tokens.len(), 7);
-
-        assert!(matches!(tokens[0], Token::LeftBracket(_)));
-        assert!(matches!(tokens[6], Token::RightBracket(_)));
+        assert!(matches!(tokens[0].kind, TokenKind::LeftBracket));
+        assert!(matches!(tokens[6].kind, TokenKind::RightBracket));
     }
 
     #[test]
@@ -497,7 +524,7 @@ mod tests {
 
         let string_count = tokens
             .iter()
-            .filter(|t| matches!(t, Token::String(_, _)))
+            .filter(|t| matches!(t.kind, TokenKind::String))
             .count();
         assert_eq!(string_count, 3);
     }
@@ -507,10 +534,10 @@ mod tests {
         let tokens = tokenize(r#"[1, "two", true, null]"#);
         assert_eq!(tokens.len(), 9);
 
-        assert!(matches!(tokens[1], Token::Number(_, _)));
-        assert!(matches!(tokens[3], Token::String(_, _)));
-        assert!(matches!(tokens[5], Token::True(_)));
-        assert!(matches!(tokens[7], Token::Null(_)));
+        assert!(matches!(tokens[1].kind, TokenKind::Number));
+        assert!(matches!(tokens[3].kind, TokenKind::String));
+        assert!(matches!(tokens[5].kind, TokenKind::True));
+        assert!(matches!(tokens[7].kind, TokenKind::Null));
     }
 
     #[test]
@@ -519,11 +546,11 @@ mod tests {
 
         let left_braces = tokens
             .iter()
-            .filter(|t| matches!(t, Token::LeftBrace(_)))
+            .filter(|t| matches!(t.kind, TokenKind::LeftBrace))
             .count();
         let right_braces = tokens
             .iter()
-            .filter(|t| matches!(t, Token::RightBrace(_)))
+            .filter(|t| matches!(t.kind, TokenKind::RightBrace))
             .count();
 
         assert_eq!(left_braces, 2);
@@ -536,11 +563,11 @@ mod tests {
 
         let left_brackets = tokens
             .iter()
-            .filter(|t| matches!(t, Token::LeftBracket(_)))
+            .filter(|t| matches!(t.kind, TokenKind::LeftBracket))
             .count();
         let right_brackets = tokens
             .iter()
-            .filter(|t| matches!(t, Token::RightBracket(_)))
+            .filter(|t| matches!(t.kind, TokenKind::RightBracket))
             .count();
 
         assert_eq!(left_brackets, 3);
@@ -551,8 +578,12 @@ mod tests {
     fn object_with_array_value() {
         let tokens = tokenize(r#"{"numbers": [1, 2, 3]}"#);
 
-        assert!(tokens.iter().any(|t| matches!(t, Token::LeftBrace(_))));
-        assert!(tokens.iter().any(|t| matches!(t, Token::LeftBracket(_))));
+        assert!(tokens
+            .iter()
+            .any(|t| matches!(t.kind, TokenKind::LeftBrace)));
+        assert!(tokens
+            .iter()
+            .any(|t| matches!(t.kind, TokenKind::LeftBracket)));
     }
 
     #[test]
@@ -561,7 +592,7 @@ mod tests {
 
         let brace_count = tokens
             .iter()
-            .filter(|t| matches!(t, Token::LeftBrace(_)))
+            .filter(|t| matches!(t.kind, TokenKind::LeftBrace))
             .count();
         assert_eq!(brace_count, 2);
     }
@@ -580,8 +611,8 @@ mod tests {
     }"#;
         let tokens = tokenize(input);
 
-        assert!(matches!(tokens[0], Token::LeftBrace(_)));
-        assert!(tokens.iter().any(|t| matches!(t, Token::Comma(_))));
+        assert!(matches!(tokens[0].kind, TokenKind::LeftBrace));
+        assert!(tokens.iter().any(|t| matches!(t.kind, TokenKind::Comma)));
     }
 
     #[test]
@@ -602,7 +633,7 @@ mod tests {
 
         let brace_count = tokens
             .iter()
-            .filter(|t| matches!(t, Token::LeftBrace(_)))
+            .filter(|t| matches!(t.kind, TokenKind::LeftBrace))
             .count();
         assert_eq!(brace_count, 4);
     }
@@ -619,17 +650,15 @@ mod tests {
 
         let tokens = tokenize(input);
 
-        // Should have 5 colons (one per key-value pair)
         let colon_count = tokens
             .iter()
-            .filter(|t| matches!(t, Token::Colon(_)))
+            .filter(|t| matches!(t.kind, TokenKind::Colon))
             .count();
         assert_eq!(colon_count, 5);
 
-        // Should have 4 commas (between pairs)
         let comma_count = tokens
             .iter()
-            .filter(|t| matches!(t, Token::Comma(_)))
+            .filter(|t| matches!(t.kind, TokenKind::Comma))
             .count();
         assert_eq!(comma_count, 4);
     }
@@ -640,7 +669,7 @@ mod tests {
 
         let number_count = tokens
             .iter()
-            .filter(|t| matches!(t, Token::Number(_, _)))
+            .filter(|t| matches!(t.kind, TokenKind::Number))
             .count();
         assert_eq!(number_count, 10);
     }
@@ -652,19 +681,19 @@ mod tests {
 
         let left_braces = tokens
             .iter()
-            .filter(|t| matches!(t, Token::LeftBrace(_)))
+            .filter(|t| matches!(t.kind, TokenKind::LeftBrace))
             .count();
         let right_braces = tokens
             .iter()
-            .filter(|t| matches!(t, Token::RightBrace(_)))
+            .filter(|t| matches!(t.kind, TokenKind::RightBrace))
             .count();
         let left_brackets = tokens
             .iter()
-            .filter(|t| matches!(t, Token::LeftBracket(_)))
+            .filter(|t| matches!(t.kind, TokenKind::LeftBracket))
             .count();
         let right_brackets = tokens
             .iter()
-            .filter(|t| matches!(t, Token::RightBracket(_)))
+            .filter(|t| matches!(t.kind, TokenKind::RightBracket))
             .count();
 
         assert_eq!(left_braces, right_braces);
@@ -675,29 +704,33 @@ mod tests {
     fn token_order_in_simple_object() {
         let tokens = tokenize(r#"{"key": "value"}"#);
 
-        assert!(matches!(tokens[0], Token::LeftBrace(_)));
-        assert!(matches!(tokens[1], Token::String(_, _)));
-        assert!(matches!(tokens[2], Token::Colon(_)));
-        assert!(matches!(tokens[3], Token::String(_, _)));
-        assert!(matches!(tokens[4], Token::RightBrace(_)));
+        let expected = [
+            TokenKind::LeftBrace,
+            TokenKind::String,
+            TokenKind::Colon,
+            TokenKind::String,
+            TokenKind::RightBrace,
+        ];
+        assert_eq!(tokens.len(), expected.len());
+        for (t, e) in tokens.iter().zip(expected.iter()) {
+            assert!(kinds_eq(&t.kind, e));
+        }
     }
 
     #[test]
     fn large_number() {
-        let tokens = tokenize("123456789");
-        match &tokens[0] {
-            Token::Number(n, _) => assert_eq!(n, "123456789"),
-            _ => panic!("Expected Number token"),
-        }
+        let input = "123456789";
+        let tokens = tokenize(input);
+        assert!(matches!(tokens[0].kind, TokenKind::Number));
+        assert_eq!(lexeme(input, &tokens[0]), "123456789");
     }
 
     #[test]
     fn decimal_with_many_digits() {
-        let tokens = tokenize("3.141592653589793");
-        match &tokens[0] {
-            Token::Number(n, _) => assert_eq!(n, "3.141592653589793"),
-            _ => panic!("Expected Number token"),
-        }
+        let input = "3.141592653589793";
+        let tokens = tokenize(input);
+        assert!(matches!(tokens[0].kind, TokenKind::Number));
+        assert_eq!(lexeme(input, &tokens[0]), "3.141592653589793");
     }
 
     #[test]

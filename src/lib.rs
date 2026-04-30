@@ -130,7 +130,9 @@ impl std::error::Error for JsonError {}
 impl fmt::Display for JsonError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            JsonError::UnexpectedToken { line,col } => write!(f, "unexpeted token at line {line}, col {col}"),
+            JsonError::UnexpectedToken { line, col } => {
+                write!(f, "unexpeted token at line {line}, col {col}")
+            }
             JsonError::UnexpectedEof => write!(f, "unexpected end of input"),
             JsonError::InvalidNumber(err) => write!(f, "invalid number : {err}"),
             JsonError::DuplicateKey(key) => write!(f, "Duplicate key : {key}"),
@@ -146,9 +148,8 @@ impl From<std::num::ParseFloatError> for JsonError {
 
 pub fn parse(input: &str) -> Result<JsonValue, JsonError> {
     let tokens: Vec<Token> = Lexer::new(input).into_tokens();
-    dbg!(&tokens);
-    let parser: Parser = Parser::new(tokens);
-     
+    let parser: Parser = Parser::new(input, tokens);
+
     Ok(parser.parse()?)
 }
 
@@ -375,14 +376,12 @@ mod parser_tests {
     #[test]
     fn test_display_string() {
         let result = parse(r#""hello""#).unwrap();
-        println!("{result}");
         assert_eq!(result.to_string(), "\"hello\"");
     }
 
     #[test]
     fn test_display_empty_array() {
         let result = parse("[]").unwrap();
-        println!("{result}");
         let output = result.to_string();
         assert!(output.contains("["));
         assert!(output.contains("]"));
@@ -391,7 +390,6 @@ mod parser_tests {
     #[test]
     fn test_display_empty_object() {
         let result = parse("{}").unwrap();
-        println!("{result}");
         let output = result.to_string();
         assert!(output.contains("{"));
         assert!(output.contains("}"));
@@ -400,7 +398,6 @@ mod parser_tests {
     #[test]
     fn test_display_simple_array() {
         let result = parse("[1,2,3]").unwrap();
-        println!("{result}");
         let output = result.to_string();
         assert!(output.contains("1"));
         assert!(output.contains("2"));
@@ -410,7 +407,6 @@ mod parser_tests {
     #[test]
     fn test_display_simple_object() {
         let result = parse(r#"{"name":"john"}"#).unwrap();
-        println!("{result}");
         let output = result.to_string();
         assert!(output.contains("name"));
         assert!(output.contains("john"));
@@ -419,7 +415,6 @@ mod parser_tests {
     #[test]
     fn test_display_nested_object() {
         let result = parse(r#"{"a":{"b":"c"}}"#).unwrap();
-        println!("{result}");
         let output = result.to_string();
         assert!(output.contains("a"));
         assert!(output.contains("b"));
@@ -429,7 +424,6 @@ mod parser_tests {
     #[test]
     fn test_display_array_with_objects() {
         let result = parse(r#"[{"a":1},{"b":2}]"#).unwrap();
-        println!("{result}");
         let output = result.to_string();
         assert!(output.contains("a"));
         assert!(output.contains("b"));
@@ -439,7 +433,6 @@ mod parser_tests {
     fn test_display_complex() {
         let input = r#"{"name":"prudhvi","age":25,"skills":["rust","python"]}"#;
         let result = parse(input).unwrap();
-        println!("{result}");
 
         let output = result.to_string();
 
