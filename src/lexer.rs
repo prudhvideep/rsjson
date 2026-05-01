@@ -146,7 +146,7 @@ impl Lexer {
                     }
                 }
                 't' => {
-                    let init_pos = start_pos;
+                    let init_pos: u32 = start_pos;
                     let col_pos: u32 = col;
                     if Self::match_keyword(&mut chars, "true", &mut start_pos, &mut col) {
                         tokens.push(Token {
@@ -159,8 +159,8 @@ impl Lexer {
                     }
                 }
                 'f' => {
-                    let init_pos = start_pos;
-                    let col_pos = col;
+                    let init_pos: u32 = start_pos;
+                    let col_pos: u32 = col;
                     if Self::match_keyword(&mut chars, "false", &mut start_pos, &mut col) {
                         tokens.push(Token {
                             kind: TokenKind::False,
@@ -173,14 +173,14 @@ impl Lexer {
                 }
                 '"' => {
                     //Consume the quote
-                    let mut s = String::new();
-                    let col_pos = col;
+                    let col_pos: u32 = col;
+                    let mut last_char: char = '\0';
 
                     chars.next();
                     col += 1;
                     start_pos += 1;
-                    let init_pos = start_pos;
-                    let mut content_end = start_pos;
+                    let init_pos: u32 = start_pos;
+                    let mut content_end: u32 = start_pos;
 
                     while let Some(&c) = chars.peek() {
                         if c == '"' {
@@ -190,11 +190,12 @@ impl Lexer {
                             col += 1;
                             start_pos += 1;
 
-                            if s.chars().last() != Some('\\') {
+                            if last_char != '\\' {
                                 break;
                             } else {
                                 let mut back_slash_count = 0;
-                                for c in s.chars().rev() {
+                                for c in input[init_pos as usize..start_pos as usize].chars().rev()
+                                {
                                     if c == '\\' {
                                         back_slash_count += 1;
                                     } else {
@@ -203,7 +204,6 @@ impl Lexer {
                                 }
 
                                 if back_slash_count % 2 != 0 {
-                                    s.push(c);
                                     continue;
                                 } else {
                                     break;
@@ -211,7 +211,7 @@ impl Lexer {
                             }
                         }
 
-                        s.push(c);
+                        last_char = c;
                         chars.next();
                         col += 1;
                         start_pos += 1;

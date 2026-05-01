@@ -20,11 +20,11 @@ impl<'a> Parser<'a> {
         Ok(num)
     }
 
-    fn resolve_string(token : &Token, input: &'a str) -> &'a str {
-       let start = token.start as usize;
-       let end = token.end as usize;
+    fn resolve_string(token: &Token, input: &'a str) -> &'a str {
+        let start = token.start as usize;
+        let end = token.end as usize;
 
-       &input[start..end]
+        &input[start..end]
     }
 
     fn expect_colon(
@@ -45,10 +45,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_string(
-        token: &Token,
-        input: &'a str,
-    ) -> Result<JsonValue, JsonError> {
+    fn parse_string(token: &Token, input: &'a str) -> Result<JsonValue, JsonError> {
         match token.kind {
             TokenKind::String => {
                 let start = token.start as usize;
@@ -63,10 +60,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_number(
-        token: &Token,
-        input: &'a str,
-    ) -> Result<JsonValue, JsonError> {
+    fn parse_number(token: &Token, input: &'a str) -> Result<JsonValue, JsonError> {
         match token.kind {
             TokenKind::Number => {
                 let start = token.start as usize;
@@ -81,9 +75,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_boolean(
-        token: &Token,
-    ) -> Result<JsonValue, JsonError> {
+    fn parse_boolean(token: &Token) -> Result<JsonValue, JsonError> {
         match token.kind {
             TokenKind::True => Ok(JsonValue::Boolean(true)),
             TokenKind::False => Ok(JsonValue::Boolean(false)),
@@ -115,12 +107,8 @@ impl<'a> Parser<'a> {
                     let end = token.end as usize;
                     values.push(JsonValue::String(input[start..end].to_string()))
                 }
-                TokenKind::LeftBrace => {
-                    values.push(Self::parse_object(token_iter, input)?)
-                },
-                TokenKind::LeftBracket => {
-                    values.push(Self::parse_array(token_iter, input)?)
-                },
+                TokenKind::LeftBrace => values.push(Self::parse_object(token_iter, input)?),
+                TokenKind::LeftBracket => values.push(Self::parse_array(token_iter, input)?),
                 TokenKind::RightBracket => {
                     break;
                 }
@@ -174,7 +162,7 @@ impl<'a> Parser<'a> {
 
                     Self::expect_colon(token_iter)?;
                     let next_token = token_iter.next().ok_or(JsonError::UnexpectedEof)?;
-                    
+
                     let value = match next_token.kind {
                         TokenKind::Null => JsonValue::Null,
                         TokenKind::String => {
@@ -241,7 +229,7 @@ impl<'a> Parser<'a> {
                     value = Self::parse_array(&mut iter, &self.input)?;
                 }
                 TokenKind::Number => {
-                    value = Self::parse_number(&token,self.input)?;
+                    value = Self::parse_number(&token, self.input)?;
                 }
                 TokenKind::False | TokenKind::True => {
                     value = Self::parse_boolean(&token)?;
