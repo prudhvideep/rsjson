@@ -1,7 +1,4 @@
-use crate::{
-    lexer::{Lexer, Token},
-    parser::Parser,
-};
+use crate::{lexer::Lexer, parser::Parser};
 use std::{collections::HashMap, fmt};
 
 mod lexer;
@@ -122,6 +119,7 @@ pub enum JsonError {
     UnexpectedToken { line: usize, col: usize },
     UnexpectedEof,
     InvalidNumber(std::num::ParseFloatError),
+    InvalidUtf8(std::str::Utf8Error),
     DuplicateKey(String),
 }
 
@@ -136,6 +134,7 @@ impl fmt::Display for JsonError {
             JsonError::UnexpectedEof => write!(f, "unexpected end of input"),
             JsonError::InvalidNumber(err) => write!(f, "invalid number : {err}"),
             JsonError::DuplicateKey(key) => write!(f, "Duplicate key : {key}"),
+            JsonError::InvalidUtf8(key) => write!(f, "Invalid utf8 : {key}"),
         }
     }
 }
@@ -146,15 +145,22 @@ impl From<std::num::ParseFloatError> for JsonError {
     }
 }
 
-pub fn parse(input: &str) -> Result<JsonValue, JsonError> {
-    let tokens: Vec<Token> = Lexer::new(input).into_tokens();
-    let parser: Parser = Parser::new(input, tokens);
+impl From<std::str::Utf8Error> for JsonError {
+    fn from(err: std::str::Utf8Error) -> Self {
+        JsonError::InvalidUtf8(err)
+    }
+}
 
-    Ok(parser.parse()?)
+pub fn parse(input: &str) -> Result<JsonValue, JsonError> {
+    let lexer = Lexer::new();
+    let parser = Parser::new(input.as_bytes(), lexer);
+
+    parser.parse()
 }
 
 #[cfg(test)]
 mod parser_tests {
+
     use crate::parse;
 
     #[test]
@@ -219,6 +225,7 @@ mod parser_tests {
         }
     }
     "#;
+        println!("result {:?}", parse(input));
         let result = parse(input).expect("should parse complex json");
         assert_eq!(result.get("name").and_then(|v| v.as_str()), Some("prudhvi"));
         assert_eq!(result.get("age").and_then(|v| v.as_f64()), Some(25.0));
@@ -244,6 +251,7 @@ mod parser_tests {
 
     #[test]
     fn parse_invalid_json() {
+        println!("Parsed value {:?}", parse(r#"{"a":}"#));
         assert!(parse(r#"{"a":}"#).is_err());
     }
 
@@ -336,11 +344,13 @@ mod parser_tests {
 
     #[test]
     fn parse_array_with_consecutive_commas() {
+        println!("paresed value {:?}", parse(r#"[1,,3,"a"]"#));
         assert!(parse(r#"[1,,3,"a"]"#).is_err());
     }
 
     #[test]
     fn parse_unclosed_brace() {
+        println!("paresed value {:?}", parse(r#"{"a":1"#));
         assert!(parse(r#"{"a":1"#).is_err());
     }
 

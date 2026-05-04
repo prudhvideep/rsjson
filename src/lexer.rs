@@ -1,8 +1,8 @@
-use std::iter::Peekable;
-
 #[derive(Debug)]
 pub(crate) struct Lexer {
-    tokens: Vec<Token>,
+    pub(crate) pos: u32,
+    pub(crate) line: u32,
+    pub(crate) col: u32,
 }
 
 #[repr(u8)]
@@ -30,177 +30,210 @@ pub(crate) struct Token {
     pub(crate) col: u32,
 }
 
-impl IntoIterator for Lexer {
-    type Item = Token;
-    type IntoIter = std::vec::IntoIter<Token>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.tokens.into_iter()
-    }
-}
-
 impl Lexer {
-    pub fn new(input: &str) -> Lexer {
-        let mut tokens = Vec::new();
-        let mut chars = input.chars().peekable();
-        let mut start_pos = 0;
-        let mut line = 1;
-        let mut col = 1;
+    pub fn new() -> Lexer {
+        Lexer {
+            pos: 0,
+            line: 1,
+            col: 1,
+        }
+    }
 
-        while let Some(&c) = chars.peek() {
-            match c {
-                '\n' => {
-                    chars.next();
-                    start_pos += 1;
-                    line += 1;
-                    col = 1;
+    pub fn next_token(&mut self, input: &[u8]) -> Option<Token> {
+        loop {
+            if self.pos as usize >= input.len() {
+                return None;
+            }
+
+            match input[self.pos as usize] {
+                b'\n' => {
+                    self.pos += 1;
+                    self.line += 1;
+                    self.col = 1;
+
+                    continue;
                 }
-                ' ' | '\t' => {
-                    chars.next();
-                    start_pos += 1;
-                    col += 1;
+                b' ' | b'\t' => {
+                    self.pos += 1;
+                    self.col += 1;
+
+                    continue;
                 }
-                '{' => {
-                    tokens.push(Token {
+                b'{' => {
+                    let init_pos = self.pos;
+
+                    self.pos += 1;
+                    self.col += 1;
+
+                    return Some(Token {
                         kind: TokenKind::LeftBrace,
-                        start: start_pos,
-                        end: start_pos + 1,
-                        line,
-                        col,
+                        start: init_pos,
+                        end: self.pos,
+                        line: self.line,
+                        col: self.col,
                     });
-                    chars.next();
-                    start_pos += 1;
-                    col += 1;
                 }
-                '}' => {
-                    tokens.push(Token {
+                b'}' => {
+                    let init_pos = self.pos;
+
+                    self.pos += 1;
+                    self.col += 1;
+
+                    return Some(Token {
                         kind: TokenKind::RightBrace,
-                        start: start_pos,
-                        end: start_pos + 1,
-                        line,
-                        col,
+                        start: init_pos,
+                        end: self.pos,
+                        line: self.line,
+                        col: self.col,
                     });
-                    chars.next();
-                    start_pos += 1;
-                    col += 1;
                 }
-                '[' => {
-                    tokens.push(Token {
+                b'[' => {
+                    let init_pos = self.pos;
+
+                    self.pos += 1;
+                    self.col += 1;
+
+                    return Some(Token {
                         kind: TokenKind::LeftBracket,
-                        start: start_pos,
-                        end: start_pos + 1,
-                        line,
-                        col,
+                        start: init_pos,
+                        end: self.pos,
+                        line: self.line,
+                        col: self.col,
                     });
-                    chars.next();
-                    start_pos += 1;
-                    col += 1;
                 }
-                ']' => {
-                    tokens.push(Token {
+                b']' => {
+                    let init_pos = self.pos;
+
+                    self.pos += 1;
+                    self.col += 1;
+
+                    return Some(Token {
                         kind: TokenKind::RightBracket,
-                        start: start_pos,
-                        end: start_pos + 1,
-                        line,
-                        col,
+                        start: init_pos,
+                        end: self.pos,
+                        line: self.line,
+                        col: self.col,
                     });
-                    chars.next();
-                    start_pos += 1;
-                    col += 1;
                 }
-                ':' => {
-                    tokens.push(Token {
+                b':' => {
+                    let init_pos = self.pos;
+
+                    self.pos += 1;
+                    self.col += 1;
+
+                    return Some(Token {
                         kind: TokenKind::Colon,
-                        start: start_pos,
-                        end: start_pos + 1,
-                        line,
-                        col,
+                        start: init_pos,
+                        end: self.pos,
+                        line: self.line,
+                        col: self.col,
                     });
-                    chars.next();
-                    start_pos += 1;
-                    col += 1;
                 }
-                ',' => {
-                    tokens.push(Token {
+                b',' => {
+                    let init_pos = self.pos;
+
+                    self.pos += 1;
+                    self.col += 1;
+
+                    return Some(Token {
                         kind: TokenKind::Comma,
-                        start: start_pos,
-                        end: start_pos + 1,
-                        line,
-                        col,
+                        start: init_pos,
+                        end: self.pos,
+                        line: self.line,
+                        col: self.col,
                     });
-                    chars.next();
-                    start_pos += 1;
-                    col += 1;
                 }
-                'n' => {
-                    let init_pos = start_pos;
-                    let col_pos: u32 = col;
-                    if Self::match_keyword(&mut chars, "null", &mut start_pos, &mut col) {
-                        tokens.push(Token {
+                b'n' => {
+                    let init_pos = self.pos;
+                    let col_pos = self.col;
+
+                    if &input[self.pos as usize..self.pos as usize + 4] == b"null" {
+                        self.pos += 4;
+                        self.col += 4;
+
+                        return Some(Token {
                             kind: TokenKind::Null,
                             start: init_pos,
-                            end: start_pos,
-                            line,
+                            end: self.pos,
+                            line: self.line,
                             col: col_pos,
                         });
+                    } else {
+                        self.pos += 1;
+                        self.col += 1;
                     }
                 }
-                't' => {
-                    let init_pos: u32 = start_pos;
-                    let col_pos: u32 = col;
-                    if Self::match_keyword(&mut chars, "true", &mut start_pos, &mut col) {
-                        tokens.push(Token {
+                b't' => {
+                    let init_pos: u32 = self.pos;
+                    let col_pos: u32 = self.col;
+
+                    if &input[self.pos as usize..self.pos as usize + 4] == b"true" {
+                        self.pos += 4;
+                        self.col += 4;
+
+                        return Some(Token {
                             kind: TokenKind::True,
                             start: init_pos,
-                            end: start_pos,
-                            line,
+                            end: self.pos,
+                            line: self.line,
                             col: col_pos,
                         });
+                    } else {
+                        self.pos += 1;
+                        self.col += 1;
                     }
                 }
-                'f' => {
-                    let init_pos: u32 = start_pos;
-                    let col_pos: u32 = col;
-                    if Self::match_keyword(&mut chars, "false", &mut start_pos, &mut col) {
-                        tokens.push(Token {
+                b'f' => {
+                    let init_pos: u32 = self.pos;
+                    let col_pos: u32 = self.col;
+
+                    if &input[self.pos as usize..self.pos as usize + 5] == b"false" {
+                        self.pos += 5;
+                        self.col += 5;
+
+                        return Some(Token {
                             kind: TokenKind::False,
                             start: init_pos,
-                            end: start_pos,
-                            line,
+                            end: self.pos,
+                            line: self.line,
                             col: col_pos,
                         });
+                    } else {
+                        self.pos += 1;
+                        self.col += 1;
                     }
                 }
-                '"' => {
+                b'"' => {
                     //Consume the quote
-                    let col_pos: u32 = col;
-                    let mut last_char: char = '\0';
+                    self.col += 1;
+                    self.pos += 1;
 
-                    chars.next();
-                    col += 1;
-                    start_pos += 1;
-                    let init_pos: u32 = start_pos;
-                    let mut content_end: u32 = start_pos;
+                    let mut str_end: u32;
+                    let col_pos: u32 = self.col;
+                    let str_start: u32 = self.pos;
+                    let mut last_byte: u8 = b'\0';
 
-                    while let Some(&c) = chars.peek() {
-                        if c == '"' {
+                    loop {
+                        if input[self.pos as usize] == b'"' {
                             //Consume the quote
-                            content_end = start_pos;
-                            chars.next();
-                            col += 1;
-                            start_pos += 1;
+                            str_end = self.pos;
+                            self.col += 1;
+                            self.pos += 1;
 
-                            if last_char != '\\' {
+                            if last_byte != b'\\' {
                                 break;
                             } else {
-                                let mut back_slash_count = 0;
-                                for c in input[init_pos as usize..start_pos as usize].chars().rev()
-                                {
-                                    if c == '\\' {
+                                let mut back_slash_count: i32 = 0;
+                                let mut last_byte_idx: u32 = self.pos - 2;
+
+                                loop {
+                                    if input[last_byte_idx as usize] == b'\\' {
                                         back_slash_count += 1;
                                     } else {
                                         break;
                                     }
+
+                                    last_byte_idx -= 1;
                                 }
 
                                 if back_slash_count % 2 != 0 {
@@ -211,29 +244,31 @@ impl Lexer {
                             }
                         }
 
-                        last_char = c;
-                        chars.next();
-                        col += 1;
-                        start_pos += 1;
+                        last_byte = input[self.pos as usize];
+                        self.col += 1;
+                        self.pos += 1;
                     }
 
-                    tokens.push(Token {
+                    return Some(Token {
                         kind: TokenKind::String,
-                        start: init_pos,
-                        end: content_end,
-                        line,
+                        start: str_start,
+                        end: str_end,
+                        line: self.line,
                         col: col_pos,
                     });
                 }
-                '0'..='9' | '-' => {
-                    let col_pos = col;
-                    let init_pos = start_pos;
-                    while let Some(&c) = chars.peek() {
-                        match c {
-                            '.' | '+' | '-' | 'E' | 'e' | '0'..='9' => {
-                                chars.next();
-                                col += 1;
-                                start_pos += 1
+                b'0'..=b'9' | b'-' => {
+                    let col_pos: u32 = self.col;
+                    let init_pos: u32 = self.pos;
+                    loop {
+                        if self.pos as usize >= input.len() {
+                            break;
+                        }
+
+                        match input[self.pos as usize] {
+                            b'.' | b'+' | b'-' | b'E' | b'e' | b'0'..=b'9' => {
+                                self.col += 1;
+                                self.pos += 1;
                             }
                             _ => {
                                 break;
@@ -241,53 +276,20 @@ impl Lexer {
                         }
                     }
 
-                    tokens.push(Token {
+                    return Some(Token {
                         kind: TokenKind::Number,
                         start: init_pos,
-                        end: start_pos,
-                        line,
+                        end: self.pos,
+                        line: self.line,
                         col: col_pos,
                     });
                 }
                 _ => {
-                    chars.next();
-                    col += 1;
-                    start_pos += 1;
+                    self.col += 1;
+                    self.pos += 1;
                 }
             }
         }
-
-        Lexer { tokens }
-    }
-
-    pub fn into_tokens(self) -> Vec<Token> {
-        self.tokens
-    }
-
-    fn match_keyword(
-        chars: &mut Peekable<std::str::Chars>,
-        keyword: &str,
-        start_pos: &mut u32,
-        col: &mut u32,
-    ) -> bool {
-        for (i, expected_char) in keyword.chars().enumerate() {
-            if i == 0 {
-                chars.next();
-                *start_pos += 1;
-                *col += 1;
-                continue;
-            }
-
-            match chars.peek() {
-                Some(&c) if c == expected_char => {
-                    chars.next();
-                    *start_pos += 1;
-                    *col += 1;
-                }
-                _ => return false,
-            }
-        }
-        true
     }
 }
 
@@ -296,7 +298,15 @@ mod tests {
     use super::*;
 
     fn tokenize(input: &str) -> Vec<Token> {
-        Lexer::new(input).into_tokens()
+        let bytes = input.as_bytes();
+        let mut lexer = Lexer::new();
+        let mut tokens = Vec::new();
+        while (lexer.pos as usize) < bytes.len() {
+            if let Some(t) = lexer.next_token(bytes) {
+                tokens.push(t);
+            }
+        }
+        tokens
     }
 
     fn lexeme<'a>(input: &'a str, t: &Token) -> &'a str {

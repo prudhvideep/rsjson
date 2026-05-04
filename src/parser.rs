@@ -1,57 +1,58 @@
 use crate::{
-    lexer::{Token, TokenKind},
+    lexer::{Lexer, Token, TokenKind},
     JsonError, JsonValue,
 };
-use std::{collections::HashMap, iter::Peekable};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub(crate) struct Parser<'a> {
-    input: &'a str,
-    tokens: Vec<Token>,
+    input: &'a [u8],
+    lexer: Lexer,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(input: &'a str, tokens: Vec<Token>) -> Parser<'a> {
-        Parser { input, tokens }
+    pub fn new(input: &'a [u8], lexer: Lexer) -> Parser<'a> {
+        Parser { input, lexer }
     }
 
-    fn resolve_number(num_str: &str) -> Result<f64, JsonError> {
-        let num = num_str.parse()?;
+    fn resolve_number(num_str: &[u8]) -> Result<f64, JsonError> {
+        let num: f64 = std::str::from_utf8(num_str)?.parse()?;
         Ok(num)
     }
 
-    fn resolve_string(token: &Token, input: &'a str) -> &'a str {
+    fn resolve_string(token: &Token, input: &'a [u8]) -> &'a str {
         let start = token.start as usize;
         let end = token.end as usize;
 
-        &input[start..end]
+        unsafe { std::str::from_utf8_unchecked(&input[start as usize..end as usize]) }
     }
 
-    fn expect_colon(
-        token_iter: &mut Peekable<std::slice::Iter<'_, Token>>,
-    ) -> Result<(), JsonError> {
-        match token_iter.peek() {
-            Some(&token) => match token.kind {
-                TokenKind::Colon => {
-                    token_iter.next();
-                    Ok(())
-                }
-                _ => Err(JsonError::UnexpectedToken {
-                    line: token.line as usize,
-                    col: token.col as usize,
-                }),
-            },
-            None => Err(JsonError::UnexpectedEof),
+    fn expect_colon(parser: &mut Parser<'a>) -> Result<(), JsonError> {
+        let token = parser
+            .lexer
+            .next_token(parser.input)
+            .ok_or(JsonError::UnexpectedEof)?;
+
+        match token.kind {
+            TokenKind::Colon => Ok(()),
+            _ => Err(JsonError::UnexpectedToken {
+                line: token.line as usize,
+                col: token.col as usize,
+            }),
         }
     }
 
-    fn parse_string(token: &Token, input: &'a str) -> Result<JsonValue, JsonError> {
+    fn parse_string(token: &Token, input: &'a [u8]) -> Result<JsonValue, JsonError> {
         match token.kind {
             TokenKind::String => {
                 let start = token.start as usize;
                 let end = token.end as usize;
 
-                Ok(JsonValue::String(input[start..end].to_string()))
+                Ok(JsonValue::String(
+                    std::str::from_utf8(&input[start as usize..end as usize])
+                        .unwrap()
+                        .to_string(),
+                ))
             }
             _ => Err(JsonError::UnexpectedToken {
                 line: token.line as usize,
@@ -60,7 +61,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_number(token: &Token, input: &'a str) -> Result<JsonValue, JsonError> {
+    fn parse_number(token: &Token, input: &'a [u8]) -> Result<JsonValue, JsonError> {
         match token.kind {
             TokenKind::Number => {
                 let start = token.start as usize;
@@ -86,13 +87,15 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_array(
-        token_iter: &mut Peekable<std::slice::Iter<'_, Token>>,
-        input: &'a str,
-    ) -> Result<JsonValue, JsonError> {
+    fn parse_array(parser: &mut Parser<'a>) -> Result<JsonValue, JsonError> {
         let mut values: Vec<JsonValue> = Vec::new();
+        let mut last_seen_token: Option<TokenKind> = None;
         loop {
-            let token = token_iter.next().ok_or(JsonError::UnexpectedEof)?;
+            let token = parser
+                .lexer
+                .next_token(parser.input)
+                .ok_or(JsonError::UnexpectedEof)?;
+
             match token.kind {
                 TokenKind::Null => values.push(JsonValue::Null),
                 TokenKind::True => values.push(JsonValue::Boolean(true)),
@@ -100,18 +103,30 @@ impl<'a> Parser<'a> {
                 TokenKind::Number => {
                     let start = token.start as usize;
                     let end = token.end as usize;
-                    values.push(JsonValue::Number(Self::resolve_number(&input[start..end])?))
+                    values.push(JsonValue::Number(Self::resolve_number(
+                        &parser.input[start..end],
+                    )?))
                 }
                 TokenKind::String => {
                     let start = token.start as usize;
                     let end = token.end as usize;
-                    values.push(JsonValue::String(input[start..end].to_string()))
+                    values.push(JsonValue::String(
+                        std::str::from_utf8(&parser.input[start as usize..end as usize])
+                            .unwrap()
+                            .to_string(),
+                    ))
                 }
-                TokenKind::LeftBrace => values.push(Self::parse_object(token_iter, input)?),
-                TokenKind::LeftBracket => values.push(Self::parse_array(token_iter, input)?),
-                TokenKind::RightBracket => {
-                    break;
+                TokenKind::LeftBrace => values.push(Self::parse_object(parser)?),
+                TokenKind::LeftBracket => values.push(Self::parse_array(parser)?),
+                TokenKind::Comma => {
+                    if let Some(TokenKind::Comma) = last_seen_token {
+                        return Err(JsonError::UnexpectedToken {
+                            line: token.line as usize,
+                            col: token.col as usize,
+                        });
+                    }
                 }
+                TokenKind::RightBracket => break,
                 _ => {
                     return Err(JsonError::UnexpectedToken {
                         line: token.line as usize,
@@ -120,66 +135,62 @@ impl<'a> Parser<'a> {
                 }
             }
 
-            match token_iter.peek() {
-                Some(token) => match token.kind {
-                    TokenKind::Comma => {
-                        token_iter.next();
-                    }
-                    TokenKind::RightBracket => {
-                        token_iter.next();
-                        break;
-                    }
-                    _ => {
-                        return Err(JsonError::UnexpectedToken {
-                            line: token.line as usize,
-                            col: token.col as usize,
-                        });
-                    }
-                },
-                None => {
-                    return Err(JsonError::UnexpectedEof);
-                }
-            }
+            last_seen_token = Some(token.kind);
         }
 
         Ok(JsonValue::Array(values))
     }
 
-    fn parse_object(
-        token_iter: &mut Peekable<std::slice::Iter<'_, Token>>,
-        input: &'a str,
-    ) -> Result<JsonValue, JsonError> {
+    fn parse_object(parser: &mut Parser<'a>) -> Result<JsonValue, JsonError> {
         let mut object: HashMap<String, JsonValue> = HashMap::new();
+        println!("Inside parse object");
         loop {
-            let token = token_iter.next().ok_or(JsonError::UnexpectedEof)?;
+            if parser.lexer.pos as usize > parser.input.len() {
+                break;
+            }
+
+            let token = parser
+                .lexer
+                .next_token(parser.input)
+                .ok_or(JsonError::UnexpectedEof)?;
+
+            println!("Current token in parse object {:?}", token);
             match token.kind {
                 TokenKind::String => {
-                    let key = Self::resolve_string(token, input);
-
-                    if let Some(_object_key) = object.get(key) {
+                    let key = Self::resolve_string(&token, parser.input).to_string();
+                    println!("Key in parse object {:?}", key);
+                    if let Some(_object_key) = object.get(&key) {
                         return Err(JsonError::DuplicateKey(key.to_string()));
                     }
 
-                    Self::expect_colon(token_iter)?;
-                    let next_token = token_iter.next().ok_or(JsonError::UnexpectedEof)?;
+                    Self::expect_colon(parser)?;
+                    let next_token = parser
+                        .lexer
+                        .next_token(parser.input)
+                        .ok_or(JsonError::UnexpectedEof)?;
 
                     let value = match next_token.kind {
                         TokenKind::Null => JsonValue::Null,
                         TokenKind::String => {
                             let start = next_token.start as usize;
                             let end = next_token.end as usize;
-                            JsonValue::String(input[start..end].to_string())
+                            JsonValue::String(
+                                std::str::from_utf8(&parser.input[start as usize..end as usize])
+                                    .unwrap()
+                                    .to_string(),
+                            )
                         }
                         TokenKind::Number => {
                             let start = next_token.start as usize;
                             let end = next_token.end as usize;
-                            JsonValue::Number(Self::resolve_number(&input[start..end])?)
+                            JsonValue::Number(Self::resolve_number(&parser.input[start..end])?)
                         }
                         TokenKind::True | TokenKind::False => {
                             JsonValue::Boolean(matches!(next_token.kind, TokenKind::True))
                         }
-                        TokenKind::LeftBrace => Self::parse_object(token_iter, input)?,
-                        TokenKind::LeftBracket => Self::parse_array(token_iter, input)?,
+                        TokenKind::LeftBrace => Self::parse_object(parser)?,
+                        TokenKind::LeftBracket => Self::parse_array(parser)?,
+                        TokenKind::Comma => continue,
                         _ => {
                             return Err(JsonError::UnexpectedToken {
                                 line: token.line as usize,
@@ -187,28 +198,10 @@ impl<'a> Parser<'a> {
                             })
                         }
                     };
+                    println!("Value in parse object {:?}", value);
                     object.insert(key.to_string(), value);
-
-                    match token_iter.peek() {
-                        Some(&token) => match token.kind {
-                            TokenKind::Comma => {
-                                token_iter.next();
-                            }
-                            TokenKind::RightBrace => {
-                                token_iter.next();
-                                break;
-                            }
-                            _ => {
-                                return Err(JsonError::UnexpectedToken {
-                                    line: token.line as usize,
-                                    col: token.col as usize,
-                                });
-                            }
-                        },
-                        None => return Err(JsonError::UnexpectedEof),
-                    }
                 }
-
+                TokenKind::Comma => continue,
                 TokenKind::RightBrace => break,
                 _ => return Err(JsonError::UnexpectedEof),
             }
@@ -216,39 +209,25 @@ impl<'a> Parser<'a> {
         Ok(JsonValue::Object(object))
     }
 
-    pub fn parse(self) -> Result<JsonValue, JsonError> {
-        let mut value = JsonValue::Null;
-        let mut iter = self.tokens.iter().peekable();
-
-        while let Some(token) = iter.next() {
-            match token.kind {
-                TokenKind::LeftBrace => {
-                    value = Self::parse_object(&mut iter, &self.input)?;
-                }
-                TokenKind::LeftBracket => {
-                    value = Self::parse_array(&mut iter, &self.input)?;
-                }
-                TokenKind::Number => {
-                    value = Self::parse_number(&token, self.input)?;
-                }
-                TokenKind::False | TokenKind::True => {
-                    value = Self::parse_boolean(&token)?;
-                }
-                TokenKind::String => {
-                    value = Self::parse_string(&token, self.input)?;
-                }
-                TokenKind::Null => {
-                    iter.next();
-                    value = JsonValue::Null;
-                }
-                _ => {
-                    return Err(JsonError::UnexpectedToken {
-                        line: token.line as usize,
-                        col: token.col as usize,
-                    });
-                }
+    pub fn parse(mut self) -> Result<JsonValue, JsonError> {
+        let token = self
+            .lexer
+            .next_token(self.input)
+            .ok_or(JsonError::UnexpectedEof)?;
+        let value = match token.kind {
+            TokenKind::LeftBrace => Self::parse_object(&mut self)?,
+            TokenKind::LeftBracket => Self::parse_array(&mut self)?,
+            TokenKind::Number => Self::parse_number(&token, self.input)?,
+            TokenKind::True | TokenKind::False => Self::parse_boolean(&token)?,
+            TokenKind::String => Self::parse_string(&token, self.input)?,
+            TokenKind::Null => JsonValue::Null,
+            _ => {
+                return Err(JsonError::UnexpectedToken {
+                    line: token.line as usize,
+                    col: token.col as usize,
+                })
             }
-        }
+        };
         Ok(value)
     }
 }
