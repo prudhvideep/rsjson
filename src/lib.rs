@@ -225,7 +225,6 @@ mod parser_tests {
         }
     }
     "#;
-        println!("result {:?}", parse(input));
         let result = parse(input).expect("should parse complex json");
         assert_eq!(result.get("name").and_then(|v| v.as_str()), Some("prudhvi"));
         assert_eq!(result.get("age").and_then(|v| v.as_f64()), Some(25.0));

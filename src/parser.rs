@@ -36,53 +36,55 @@ impl<'a> Parser<'a> {
         match token.kind {
             TokenKind::Colon => Ok(()),
             _ => Err(JsonError::UnexpectedToken {
-                line: token.line as usize,
-                col: token.col as usize,
+                line: parser.lexer.prev_token_line as usize,
+                col: parser.lexer.prev_token_col as usize,
             }),
         }
     }
 
-    fn parse_string(token: &Token, input: &'a [u8]) -> Result<JsonValue, JsonError> {
+    fn parse_string(token: &Token, parser: &mut Parser<'a>) -> Result<JsonValue, JsonError> {
         match token.kind {
             TokenKind::String => {
                 let start = token.start as usize;
                 let end = token.end as usize;
 
                 Ok(JsonValue::String(
-                    std::str::from_utf8(&input[start as usize..end as usize])
+                    std::str::from_utf8(&parser.input[start as usize..end as usize])
                         .unwrap()
                         .to_string(),
                 ))
             }
             _ => Err(JsonError::UnexpectedToken {
-                line: token.line as usize,
-                col: token.col as usize,
+                line: parser.lexer.prev_token_line as usize,
+                col: parser.lexer.prev_token_col as usize,
             }),
         }
     }
 
-    fn parse_number(token: &Token, input: &'a [u8]) -> Result<JsonValue, JsonError> {
+    fn parse_number(token: &Token, parser: &mut Parser<'a>) -> Result<JsonValue, JsonError> {
         match token.kind {
             TokenKind::Number => {
                 let start = token.start as usize;
                 let end = token.end as usize;
 
-                Ok(JsonValue::Number(Self::resolve_number(&input[start..end])?))
+                Ok(JsonValue::Number(Self::resolve_number(
+                    &parser.input[start..end],
+                )?))
             }
             _ => Err(JsonError::UnexpectedToken {
-                line: token.line as usize,
-                col: token.col as usize,
+                line: parser.lexer.prev_token_line as usize,
+                col: parser.lexer.prev_token_col as usize,
             }),
         }
     }
 
-    fn parse_boolean(token: &Token) -> Result<JsonValue, JsonError> {
+    fn parse_boolean(token: &Token, parser: &mut Parser<'a>) -> Result<JsonValue, JsonError> {
         match token.kind {
             TokenKind::True => Ok(JsonValue::Boolean(true)),
             TokenKind::False => Ok(JsonValue::Boolean(false)),
             _ => Err(JsonError::UnexpectedToken {
-                line: token.line as usize,
-                col: token.col as usize,
+                line: parser.lexer.prev_token_line as usize,
+                col: parser.lexer.prev_token_col as usize,
             }),
         }
     }
@@ -121,16 +123,16 @@ impl<'a> Parser<'a> {
                 TokenKind::Comma => {
                     if let Some(TokenKind::Comma) = last_seen_token {
                         return Err(JsonError::UnexpectedToken {
-                            line: token.line as usize,
-                            col: token.col as usize,
+                            line: parser.lexer.prev_token_line as usize,
+                            col: parser.lexer.prev_token_col as usize,
                         });
                     }
                 }
                 TokenKind::RightBracket => break,
                 _ => {
                     return Err(JsonError::UnexpectedToken {
-                        line: token.line as usize,
-                        col: token.col as usize,
+                        line: parser.lexer.prev_token_line as usize,
+                        col: parser.lexer.prev_token_col as usize,
                     })
                 }
             }
@@ -143,7 +145,6 @@ impl<'a> Parser<'a> {
 
     fn parse_object(parser: &mut Parser<'a>) -> Result<JsonValue, JsonError> {
         let mut object: HashMap<String, JsonValue> = HashMap::new();
-        println!("Inside parse object");
         loop {
             if parser.lexer.pos as usize > parser.input.len() {
                 break;
@@ -154,11 +155,9 @@ impl<'a> Parser<'a> {
                 .next_token(parser.input)
                 .ok_or(JsonError::UnexpectedEof)?;
 
-            println!("Current token in parse object {:?}", token);
             match token.kind {
                 TokenKind::String => {
                     let key = Self::resolve_string(&token, parser.input).to_string();
-                    println!("Key in parse object {:?}", key);
                     if let Some(_object_key) = object.get(&key) {
                         return Err(JsonError::DuplicateKey(key.to_string()));
                     }
@@ -193,12 +192,11 @@ impl<'a> Parser<'a> {
                         TokenKind::Comma => continue,
                         _ => {
                             return Err(JsonError::UnexpectedToken {
-                                line: token.line as usize,
-                                col: token.col as usize,
+                                line: parser.lexer.prev_token_line as usize,
+                                col: parser.lexer.prev_token_col as usize,
                             })
                         }
                     };
-                    println!("Value in parse object {:?}", value);
                     object.insert(key.to_string(), value);
                 }
                 TokenKind::Comma => continue,
@@ -217,14 +215,14 @@ impl<'a> Parser<'a> {
         let value = match token.kind {
             TokenKind::LeftBrace => Self::parse_object(&mut self)?,
             TokenKind::LeftBracket => Self::parse_array(&mut self)?,
-            TokenKind::Number => Self::parse_number(&token, self.input)?,
-            TokenKind::True | TokenKind::False => Self::parse_boolean(&token)?,
-            TokenKind::String => Self::parse_string(&token, self.input)?,
+            TokenKind::Number => Self::parse_number(&token, &mut self)?,
+            TokenKind::True | TokenKind::False => Self::parse_boolean(&token, &mut self)?,
+            TokenKind::String => Self::parse_string(&token, &mut self)?,
             TokenKind::Null => JsonValue::Null,
             _ => {
                 return Err(JsonError::UnexpectedToken {
-                    line: token.line as usize,
-                    col: token.col as usize,
+                    line: self.lexer.prev_token_line as usize,
+                    col: self.lexer.prev_token_col as usize,
                 })
             }
         };

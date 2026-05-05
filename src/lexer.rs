@@ -3,6 +3,8 @@ pub(crate) struct Lexer {
     pub(crate) pos: u32,
     pub(crate) line: u32,
     pub(crate) col: u32,
+    pub(crate) prev_token_line: u32,
+    pub(crate) prev_token_col: u32,
 }
 
 #[repr(u8)]
@@ -26,8 +28,6 @@ pub(crate) struct Token {
     pub(crate) kind: TokenKind,
     pub(crate) start: u32,
     pub(crate) end: u32,
-    pub(crate) line: u32,
-    pub(crate) col: u32,
 }
 
 impl Lexer {
@@ -36,6 +36,8 @@ impl Lexer {
             pos: 0,
             line: 1,
             col: 1,
+            prev_token_line: 1,
+            prev_token_col: 1,
         }
     }
 
@@ -44,6 +46,9 @@ impl Lexer {
             if self.pos as usize >= input.len() {
                 return None;
             }
+
+            self.prev_token_col = self.col;
+            self.prev_token_line = self.line;
 
             match input[self.pos as usize] {
                 b'\n' => {
@@ -69,8 +74,6 @@ impl Lexer {
                         kind: TokenKind::LeftBrace,
                         start: init_pos,
                         end: self.pos,
-                        line: self.line,
-                        col: self.col,
                     });
                 }
                 b'}' => {
@@ -83,8 +86,6 @@ impl Lexer {
                         kind: TokenKind::RightBrace,
                         start: init_pos,
                         end: self.pos,
-                        line: self.line,
-                        col: self.col,
                     });
                 }
                 b'[' => {
@@ -97,8 +98,6 @@ impl Lexer {
                         kind: TokenKind::LeftBracket,
                         start: init_pos,
                         end: self.pos,
-                        line: self.line,
-                        col: self.col,
                     });
                 }
                 b']' => {
@@ -111,8 +110,6 @@ impl Lexer {
                         kind: TokenKind::RightBracket,
                         start: init_pos,
                         end: self.pos,
-                        line: self.line,
-                        col: self.col,
                     });
                 }
                 b':' => {
@@ -125,8 +122,6 @@ impl Lexer {
                         kind: TokenKind::Colon,
                         start: init_pos,
                         end: self.pos,
-                        line: self.line,
-                        col: self.col,
                     });
                 }
                 b',' => {
@@ -139,13 +134,10 @@ impl Lexer {
                         kind: TokenKind::Comma,
                         start: init_pos,
                         end: self.pos,
-                        line: self.line,
-                        col: self.col,
                     });
                 }
                 b'n' => {
                     let init_pos = self.pos;
-                    let col_pos = self.col;
 
                     if &input[self.pos as usize..self.pos as usize + 4] == b"null" {
                         self.pos += 4;
@@ -155,8 +147,6 @@ impl Lexer {
                             kind: TokenKind::Null,
                             start: init_pos,
                             end: self.pos,
-                            line: self.line,
-                            col: col_pos,
                         });
                     } else {
                         self.pos += 1;
@@ -165,7 +155,6 @@ impl Lexer {
                 }
                 b't' => {
                     let init_pos: u32 = self.pos;
-                    let col_pos: u32 = self.col;
 
                     if &input[self.pos as usize..self.pos as usize + 4] == b"true" {
                         self.pos += 4;
@@ -175,8 +164,6 @@ impl Lexer {
                             kind: TokenKind::True,
                             start: init_pos,
                             end: self.pos,
-                            line: self.line,
-                            col: col_pos,
                         });
                     } else {
                         self.pos += 1;
@@ -185,7 +172,6 @@ impl Lexer {
                 }
                 b'f' => {
                     let init_pos: u32 = self.pos;
-                    let col_pos: u32 = self.col;
 
                     if &input[self.pos as usize..self.pos as usize + 5] == b"false" {
                         self.pos += 5;
@@ -195,8 +181,6 @@ impl Lexer {
                             kind: TokenKind::False,
                             start: init_pos,
                             end: self.pos,
-                            line: self.line,
-                            col: col_pos,
                         });
                     } else {
                         self.pos += 1;
@@ -209,9 +193,8 @@ impl Lexer {
                     self.pos += 1;
 
                     let mut str_end: u32;
-                    let col_pos: u32 = self.col;
-                    let str_start: u32 = self.pos;
                     let mut last_byte: u8 = b'\0';
+                    let str_start: u32 = self.pos;
 
                     loop {
                         if input[self.pos as usize] == b'"' {
@@ -253,12 +236,9 @@ impl Lexer {
                         kind: TokenKind::String,
                         start: str_start,
                         end: str_end,
-                        line: self.line,
-                        col: col_pos,
                     });
                 }
                 b'0'..=b'9' | b'-' => {
-                    let col_pos: u32 = self.col;
                     let init_pos: u32 = self.pos;
                     loop {
                         if self.pos as usize >= input.len() {
@@ -280,8 +260,6 @@ impl Lexer {
                         kind: TokenKind::Number,
                         start: init_pos,
                         end: self.pos,
-                        line: self.line,
-                        col: col_pos,
                     });
                 }
                 _ => {
