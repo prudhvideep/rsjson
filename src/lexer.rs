@@ -3,8 +3,8 @@ pub(crate) struct Lexer {
     pub(crate) pos: u32,
     pub(crate) line: u32,
     pub(crate) col: u32,
-    pub(crate) prev_token_line: u32,
-    pub(crate) prev_token_col: u32,
+    pub(crate) last_token_line: u32,
+    pub(crate) last_token_col: u32,
 }
 
 #[repr(u8)]
@@ -36,8 +36,8 @@ impl Lexer {
             pos: 0,
             line: 1,
             col: 1,
-            prev_token_line: 1,
-            prev_token_col: 1,
+            last_token_line: 1,
+            last_token_col: 1,
         }
     }
 
@@ -47,8 +47,8 @@ impl Lexer {
                 return None;
             }
 
-            self.prev_token_col = self.col;
-            self.prev_token_line = self.line;
+            self.last_token_col = self.col;
+            self.last_token_line = self.line;
 
             match input[self.pos as usize] {
                 b'\n' => {
@@ -745,7 +745,7 @@ mod tests {
         let mut out = Vec::new();
         while (lexer.pos as usize) < bytes.len() {
             if let Some(t) = lexer.next_token(bytes) {
-                out.push((t, lexer.prev_token_line, lexer.prev_token_col));
+                out.push((t, lexer.last_token_line, lexer.last_token_col));
             }
         }
         out
@@ -757,16 +757,16 @@ mod tests {
         assert_eq!(lexer.pos, 0);
         assert_eq!(lexer.line, 1);
         assert_eq!(lexer.col, 1);
-        assert_eq!(lexer.prev_token_line, 1);
-        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.last_token_line, 1);
+        assert_eq!(lexer.last_token_col, 1);
     }
 
     #[test]
     fn single_token_records_start_position() {
         let mut lexer = Lexer::new();
         let _ = lexer.next_token(b"{");
-        assert_eq!(lexer.prev_token_line, 1);
-        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.last_token_line, 1);
+        assert_eq!(lexer.last_token_col, 1);
         assert_eq!(lexer.line, 1);
         assert_eq!(lexer.col, 2);
     }
@@ -775,39 +775,39 @@ mod tests {
     fn leading_whitespace_advances_col_to_token_start() {
         let mut lexer = Lexer::new();
         let _ = lexer.next_token(b"   {");
-        assert_eq!(lexer.prev_token_line, 1);
-        assert_eq!(lexer.prev_token_col, 4);
+        assert_eq!(lexer.last_token_line, 1);
+        assert_eq!(lexer.last_token_col, 4);
     }
 
     #[test]
     fn newline_advances_line_and_resets_col() {
         let mut lexer = Lexer::new();
         let _ = lexer.next_token(b"\n{");
-        assert_eq!(lexer.prev_token_line, 2);
-        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.last_token_line, 2);
+        assert_eq!(lexer.last_token_col, 1);
     }
 
     #[test]
     fn multiple_newlines_each_advance_line() {
         let mut lexer = Lexer::new();
         let _ = lexer.next_token(b"\n\n\n{");
-        assert_eq!(lexer.prev_token_line, 4);
-        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.last_token_line, 4);
+        assert_eq!(lexer.last_token_col, 1);
     }
 
     #[test]
     fn tab_advances_col_by_one() {
         let mut lexer = Lexer::new();
         let _ = lexer.next_token(b"\t{");
-        assert_eq!(lexer.prev_token_line, 1);
-        assert_eq!(lexer.prev_token_col, 2);
+        assert_eq!(lexer.last_token_line, 1);
+        assert_eq!(lexer.last_token_col, 2);
     }
 
     #[test]
     fn string_advances_col_per_byte() {
         let mut lexer = Lexer::new();
         let _ = lexer.next_token(br#""abc""#);
-        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.last_token_col, 1);
         assert_eq!(lexer.col, 6);
         assert_eq!(lexer.line, 1);
     }
@@ -816,7 +816,7 @@ mod tests {
     fn string_with_spaces_advances_col_per_byte() {
         let mut lexer = Lexer::new();
         let _ = lexer.next_token(br#""hello world""#);
-        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.last_token_col, 1);
         assert_eq!(lexer.col, 14);
     }
 
@@ -824,7 +824,7 @@ mod tests {
     fn number_advances_col_per_digit() {
         let mut lexer = Lexer::new();
         let _ = lexer.next_token(b"12345");
-        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.last_token_col, 1);
         assert_eq!(lexer.col, 6);
         assert_eq!(lexer.line, 1);
     }
@@ -833,7 +833,7 @@ mod tests {
     fn keyword_true_advances_col_by_four() {
         let mut lexer = Lexer::new();
         let _ = lexer.next_token(b"true");
-        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.last_token_col, 1);
         assert_eq!(lexer.col, 5);
     }
 
@@ -841,7 +841,7 @@ mod tests {
     fn keyword_false_advances_col_by_five() {
         let mut lexer = Lexer::new();
         let _ = lexer.next_token(b"false");
-        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.last_token_col, 1);
         assert_eq!(lexer.col, 6);
     }
 
@@ -849,7 +849,7 @@ mod tests {
     fn keyword_null_advances_col_by_four() {
         let mut lexer = Lexer::new();
         let _ = lexer.next_token(b"null");
-        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.last_token_col, 1);
         assert_eq!(lexer.col, 5);
     }
 
@@ -875,11 +875,11 @@ mod tests {
         let input = b"1\n2";
         let mut lexer = Lexer::new();
         let _ = lexer.next_token(input);
-        assert_eq!(lexer.prev_token_line, 1);
-        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.last_token_line, 1);
+        assert_eq!(lexer.last_token_col, 1);
         let _ = lexer.next_token(input);
-        assert_eq!(lexer.prev_token_line, 2);
-        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.last_token_line, 2);
+        assert_eq!(lexer.last_token_col, 1);
     }
 
     #[test]
@@ -887,11 +887,11 @@ mod tests {
         let mut lexer = Lexer::new();
         let bytes = b"  {";
         let _ = lexer.next_token(bytes);
-        let saved_line = lexer.prev_token_line;
-        let saved_col = lexer.prev_token_col;
+        let saved_line = lexer.last_token_line;
+        let saved_col = lexer.last_token_col;
         assert!(lexer.next_token(bytes).is_none());
-        assert_eq!(lexer.prev_token_line, saved_line);
-        assert_eq!(lexer.prev_token_col, saved_col);
+        assert_eq!(lexer.last_token_line, saved_line);
+        assert_eq!(lexer.last_token_col, saved_col);
     }
 
     #[test]

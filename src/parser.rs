@@ -36,8 +36,8 @@ impl<'a> Parser<'a> {
         match token.kind {
             TokenKind::Colon => Ok(()),
             _ => Err(JsonError::UnexpectedToken {
-                line: parser.lexer.prev_token_line as usize,
-                col: parser.lexer.prev_token_col as usize,
+                line: parser.lexer.last_token_line as usize,
+                col: parser.lexer.last_token_col as usize,
             }),
         }
     }
@@ -55,8 +55,8 @@ impl<'a> Parser<'a> {
                 ))
             }
             _ => Err(JsonError::UnexpectedToken {
-                line: parser.lexer.prev_token_line as usize,
-                col: parser.lexer.prev_token_col as usize,
+                line: parser.lexer.last_token_line as usize,
+                col: parser.lexer.last_token_col as usize,
             }),
         }
     }
@@ -72,8 +72,8 @@ impl<'a> Parser<'a> {
                 )?))
             }
             _ => Err(JsonError::UnexpectedToken {
-                line: parser.lexer.prev_token_line as usize,
-                col: parser.lexer.prev_token_col as usize,
+                line: parser.lexer.last_token_line as usize,
+                col: parser.lexer.last_token_col as usize,
             }),
         }
     }
@@ -83,8 +83,8 @@ impl<'a> Parser<'a> {
             TokenKind::True => Ok(JsonValue::Boolean(true)),
             TokenKind::False => Ok(JsonValue::Boolean(false)),
             _ => Err(JsonError::UnexpectedToken {
-                line: parser.lexer.prev_token_line as usize,
-                col: parser.lexer.prev_token_col as usize,
+                line: parser.lexer.last_token_line as usize,
+                col: parser.lexer.last_token_col as usize,
             }),
         }
     }
@@ -123,16 +123,16 @@ impl<'a> Parser<'a> {
                 TokenKind::Comma => {
                     if let Some(TokenKind::Comma) = last_seen_token {
                         return Err(JsonError::UnexpectedToken {
-                            line: parser.lexer.prev_token_line as usize,
-                            col: parser.lexer.prev_token_col as usize,
+                            line: parser.lexer.last_token_line as usize,
+                            col: parser.lexer.last_token_col as usize,
                         });
                     }
                 }
                 TokenKind::RightBracket => break,
                 _ => {
                     return Err(JsonError::UnexpectedToken {
-                        line: parser.lexer.prev_token_line as usize,
-                        col: parser.lexer.prev_token_col as usize,
+                        line: parser.lexer.last_token_line as usize,
+                        col: parser.lexer.last_token_col as usize,
                     })
                 }
             }
@@ -192,8 +192,8 @@ impl<'a> Parser<'a> {
                         TokenKind::Comma => continue,
                         _ => {
                             return Err(JsonError::UnexpectedToken {
-                                line: parser.lexer.prev_token_line as usize,
-                                col: parser.lexer.prev_token_col as usize,
+                                line: parser.lexer.last_token_line as usize,
+                                col: parser.lexer.last_token_col as usize,
                             })
                         }
                     };
@@ -221,8 +221,8 @@ impl<'a> Parser<'a> {
             TokenKind::Null => JsonValue::Null,
             _ => {
                 return Err(JsonError::UnexpectedToken {
-                    line: self.lexer.prev_token_line as usize,
-                    col: self.lexer.prev_token_col as usize,
+                    line: self.lexer.last_token_line as usize,
+                    col: self.lexer.last_token_col as usize,
                 })
             }
         };
