@@ -738,4 +738,185 @@ mod tests {
             println!("{:?}", token);
         }
     }
+
+    fn tokenize_with_pos(input: &str) -> Vec<(Token, u32, u32)> {
+        let bytes = input.as_bytes();
+        let mut lexer = Lexer::new();
+        let mut out = Vec::new();
+        while (lexer.pos as usize) < bytes.len() {
+            if let Some(t) = lexer.next_token(bytes) {
+                out.push((t, lexer.prev_token_line, lexer.prev_token_col));
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn lexer_initial_state() {
+        let lexer = Lexer::new();
+        assert_eq!(lexer.pos, 0);
+        assert_eq!(lexer.line, 1);
+        assert_eq!(lexer.col, 1);
+        assert_eq!(lexer.prev_token_line, 1);
+        assert_eq!(lexer.prev_token_col, 1);
+    }
+
+    #[test]
+    fn single_token_records_start_position() {
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(b"{");
+        assert_eq!(lexer.prev_token_line, 1);
+        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.line, 1);
+        assert_eq!(lexer.col, 2);
+    }
+
+    #[test]
+    fn leading_whitespace_advances_col_to_token_start() {
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(b"   {");
+        assert_eq!(lexer.prev_token_line, 1);
+        assert_eq!(lexer.prev_token_col, 4);
+    }
+
+    #[test]
+    fn newline_advances_line_and_resets_col() {
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(b"\n{");
+        assert_eq!(lexer.prev_token_line, 2);
+        assert_eq!(lexer.prev_token_col, 1);
+    }
+
+    #[test]
+    fn multiple_newlines_each_advance_line() {
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(b"\n\n\n{");
+        assert_eq!(lexer.prev_token_line, 4);
+        assert_eq!(lexer.prev_token_col, 1);
+    }
+
+    #[test]
+    fn tab_advances_col_by_one() {
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(b"\t{");
+        assert_eq!(lexer.prev_token_line, 1);
+        assert_eq!(lexer.prev_token_col, 2);
+    }
+
+    #[test]
+    fn string_advances_col_per_byte() {
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(br#""abc""#);
+        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.col, 6);
+        assert_eq!(lexer.line, 1);
+    }
+
+    #[test]
+    fn string_with_spaces_advances_col_per_byte() {
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(br#""hello world""#);
+        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.col, 14);
+    }
+
+    #[test]
+    fn number_advances_col_per_digit() {
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(b"12345");
+        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.col, 6);
+        assert_eq!(lexer.line, 1);
+    }
+
+    #[test]
+    fn keyword_true_advances_col_by_four() {
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(b"true");
+        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.col, 5);
+    }
+
+    #[test]
+    fn keyword_false_advances_col_by_five() {
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(b"false");
+        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.col, 6);
+    }
+
+    #[test]
+    fn keyword_null_advances_col_by_four() {
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(b"null");
+        assert_eq!(lexer.prev_token_col, 1);
+        assert_eq!(lexer.col, 5);
+    }
+
+    #[test]
+    fn tracks_position_of_each_token_inline() {
+        let positions = tokenize_with_pos(r#"{"k":1}"#);
+        let lines: Vec<u32> = positions.iter().map(|(_, l, _)| *l).collect();
+        let cols: Vec<u32> = positions.iter().map(|(_, _, c)| *c).collect();
+        assert_eq!(lines, vec![1, 1, 1, 1, 1]);
+        assert_eq!(cols, vec![1, 2, 5, 6, 7]);
+    }
+
+    #[test]
+    fn tracks_position_across_lines() {
+        let input = "{\n  \"k\": 1\n}";
+        let positions = tokenize_with_pos(input);
+        let line_col: Vec<(u32, u32)> = positions.iter().map(|(_, l, c)| (*l, *c)).collect();
+        assert_eq!(line_col, vec![(1, 1), (2, 3), (2, 6), (2, 8), (3, 1)]);
+    }
+
+    #[test]
+    fn second_token_after_newline_token() {
+        let input = b"1\n2";
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(input);
+        assert_eq!(lexer.prev_token_line, 1);
+        assert_eq!(lexer.prev_token_col, 1);
+        let _ = lexer.next_token(input);
+        assert_eq!(lexer.prev_token_line, 2);
+        assert_eq!(lexer.prev_token_col, 1);
+    }
+
+    #[test]
+    fn prev_token_position_unchanged_at_eof() {
+        let mut lexer = Lexer::new();
+        let bytes = b"  {";
+        let _ = lexer.next_token(bytes);
+        let saved_line = lexer.prev_token_line;
+        let saved_col = lexer.prev_token_col;
+        assert!(lexer.next_token(bytes).is_none());
+        assert_eq!(lexer.prev_token_line, saved_line);
+        assert_eq!(lexer.prev_token_col, saved_col);
+    }
+
+    #[test]
+    fn line_does_not_advance_within_token() {
+        let mut lexer = Lexer::new();
+        let _ = lexer.next_token(b"12345");
+        assert_eq!(lexer.line, 1);
+    }
+
+    #[test]
+    fn tracks_position_through_nested_structure() {
+        let input = "[\n  {\n    \"k\": true\n  }\n]";
+        let positions = tokenize_with_pos(input);
+        let line_col: Vec<(u32, u32)> = positions.iter().map(|(_, l, c)| (*l, *c)).collect();
+        assert_eq!(
+            line_col,
+            vec![
+                (1, 1), // [
+                (2, 3), // {
+                (3, 5), // "k"
+                (3, 8), // :
+                (3, 10), // true
+                (4, 3), // }
+                (5, 1), // ]
+            ]
+        );
+    }
 }
