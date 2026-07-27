@@ -3,7 +3,6 @@ use std::fmt;
 
 mod lexer;
 mod parser;
-mod stack;
 mod tape;
 
 pub use tape::{Entry, EntryKind, Tape};
