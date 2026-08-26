@@ -28,6 +28,44 @@ pub(crate) struct Token {
     pub(crate) end: u32,
 }
 
+impl Token {
+    fn token_from_char(character: u8, start: u32, end: u32) -> Option<Self> {
+        match character as char {
+            '{' => Some(Self {
+                kind: TokenKind::LeftBrace,
+                start,
+                end,
+            }),
+            '}' => Some(Self {
+                kind: TokenKind::RightBrace,
+                start,
+                end,
+            }),
+            '[' => Some(Self {
+                kind: TokenKind::LeftBracket,
+                start,
+                end,
+            }),
+            ']' => Some(Self {
+                kind: TokenKind::RightBracket,
+                start,
+                end,
+            }),
+            ':' => Some(Self {
+                kind: TokenKind::Colon,
+                start,
+                end,
+            }),
+            ',' => Some(Self {
+                kind: TokenKind::Comma,
+                start,
+                end,
+            }),
+            _ => None,
+        }
+    }
+}
+
 impl Lexer {
     pub fn new() -> Lexer {
         Lexer {
@@ -53,77 +91,13 @@ impl Lexer {
 
                     continue;
                 }
-                b'{' => {
+                b'{' | b'}' | b'[' | b']' | b':' | b',' => {
                     let init_pos = self.pos;
 
                     self.pos += 1;
                     self.col += 1;
 
-                    return Some(Token {
-                        kind: TokenKind::LeftBrace,
-                        start: init_pos,
-                        end: self.pos,
-                    });
-                }
-                b'}' => {
-                    let init_pos = self.pos;
-
-                    self.pos += 1;
-                    self.col += 1;
-
-                    return Some(Token {
-                        kind: TokenKind::RightBrace,
-                        start: init_pos,
-                        end: self.pos,
-                    });
-                }
-                b'[' => {
-                    let init_pos = self.pos;
-
-                    self.pos += 1;
-                    self.col += 1;
-
-                    return Some(Token {
-                        kind: TokenKind::LeftBracket,
-                        start: init_pos,
-                        end: self.pos,
-                    });
-                }
-                b']' => {
-                    let init_pos = self.pos;
-
-                    self.pos += 1;
-                    self.col += 1;
-
-                    return Some(Token {
-                        kind: TokenKind::RightBracket,
-                        start: init_pos,
-                        end: self.pos,
-                    });
-                }
-                b':' => {
-                    let init_pos = self.pos;
-
-                    self.pos += 1;
-                    self.col += 1;
-
-                    return Some(Token {
-                        kind: TokenKind::Colon,
-                        start: init_pos,
-                        end: self.pos,
-                    });
-                }
-                b',' => {
-                    let init_pos = self.pos;
-
-                    self.pos += 1;
-                    self.col += 1;
-
-                    return Some(Token {
-                        kind: TokenKind::Comma,
-                        start: init_pos,
-                        end: self.pos,
-                    });
+                    return Token::token_from_char(input[init_pos as usize], init_pos, self.pos);
                 }
                 b'n' => {
                     let init_pos = self.pos;
