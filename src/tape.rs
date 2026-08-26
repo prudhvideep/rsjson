@@ -32,8 +32,33 @@ impl Tape {
         }
     }
 
-    pub fn add_entry(&mut self, entry: Entry) {
-        self.entries.push(entry);
+    #[inline(always)]
+    pub fn add_entry(&mut self, kind: EntryKind, index: u32) {
+        self.entries.push(Entry { kind, index });
+    }
+
+    #[inline(always)]
+    pub fn add_string_markers(&mut self, start: u32, end: u32) {
+        self.entries.push(Entry {
+            kind: EntryKind::StringStart,
+            index: start,
+        });
+        self.entries.push(Entry {
+            kind: EntryKind::StringEnd,
+            index: end,
+        });
+    }
+
+    #[inline(always)]
+    pub fn add_number_markers(&mut self, start: u32, end: u32) {
+        self.entries.push(Entry {
+            kind: EntryKind::NumberStart,
+            index: start,
+        });
+        self.entries.push(Entry {
+            kind: EntryKind::NumberEnd,
+            index: end,
+        });
     }
 
     #[cfg(test)]

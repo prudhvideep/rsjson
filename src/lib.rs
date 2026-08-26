@@ -9,7 +9,7 @@ pub use tape::{Entry, EntryKind, Tape};
 
 #[derive(Debug)]
 pub enum JsonError {
-    UnexpectedToken { line: usize, col: usize },
+    UnexpectedToken,
     UnexpectedEof,
     InvalidNumber(std::num::ParseFloatError),
     InvalidUtf8(std::str::Utf8Error),
@@ -21,9 +21,7 @@ impl std::error::Error for JsonError {}
 impl fmt::Display for JsonError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            JsonError::UnexpectedToken { line, col } => {
-                write!(f, "unexpeted token at line {line}, col {col}")
-            }
+            JsonError::UnexpectedToken => write!(f, "unexpected token"),
             JsonError::UnexpectedEof => write!(f, "unexpected end of input"),
             JsonError::InvalidNumber(err) => write!(f, "invalid number : {err}"),
             JsonError::DuplicateKey(key) => write!(f, "Duplicate key : {key}"),
@@ -134,4 +132,3 @@ mod parser_tests {
         );
     }
 }
-
