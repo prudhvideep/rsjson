@@ -88,12 +88,8 @@ impl<'a> Parser<'a> {
                     let next_token = parser.advance_parser()?;
 
                     match next_token.kind {
-                        TokenKind::String => {
-                            tape.add_string_markers(next_token.start, next_token.end)
-                        }
-                        TokenKind::Number => {
-                            tape.add_number_markers(next_token.start, next_token.end)
-                        }
+                        TokenKind::String => tape.add_string_markers(next_token.start, next_token.end),
+                        TokenKind::Number => tape.add_number_markers(next_token.start, next_token.end),
                         TokenKind::Null => tape.add_entry(Null, next_token.start),
                         TokenKind::True => tape.add_entry(True, next_token.start),
                         TokenKind::False => tape.add_entry(False, next_token.start),

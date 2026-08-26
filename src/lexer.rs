@@ -39,11 +39,7 @@ impl Lexer {
 
     pub fn next_token(&mut self, input: &[u8]) -> Option<Token> {
         loop {
-            if self.pos as usize >= input.len() {
-                return None;
-            }
-
-            match input[self.pos as usize] {
+            match input.get(self.pos as usize)? {
                 b'\n' => {
                     self.pos += 1;
                     self.line += 1;
@@ -234,12 +230,8 @@ impl Lexer {
                 b'0'..=b'9' | b'-' => {
                     let init_pos: u32 = self.pos;
                     loop {
-                        if self.pos as usize >= input.len() {
-                            break;
-                        }
-
-                        match input[self.pos as usize] {
-                            b'.' | b'+' | b'-' | b'E' | b'e' | b'0'..=b'9' => {
+                        match input.get(self.pos as usize).copied() {
+                            Some(b'.' | b'+' | b'-' | b'E' | b'e' | b'0'..=b'9') => {
                                 self.col += 1;
                                 self.pos += 1;
                             }
