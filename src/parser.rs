@@ -14,23 +14,26 @@ pub(crate) struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(input: &'a [u8], lexer: Lexer) -> Parser<'a> {
-        Parser { input, lexer }
+    pub fn new(input: &'a [u8]) -> Parser<'a> {
+        Parser {
+            input,
+            lexer: Lexer::new(),
+        }
     }
 
     #[inline(always)]
-    fn advance_parser(&mut self) -> Result<Token, JsonError> {
+    fn advance(&mut self) -> Result<Token, JsonError> {
         let token = self
             .lexer
             .next_token(self.input)
-            .ok_or(JsonError::UnexpectedEof);
+            .ok_or(JsonError::UnexpectedEof); 
 
         token
     }
 
     #[inline(always)]
     fn expect_colon(parser: &mut Parser<'a>) -> Result<(), JsonError> {
-        let token = parser.advance_parser()?;
+        let token = parser.advance()?;
 
         match token.kind {
             TokenKind::Colon => Ok(()),
@@ -43,7 +46,7 @@ impl<'a> Parser<'a> {
         tape.add_entry(ArrayStart, parser.lexer.pos);
 
         loop {
-            let token = parser.advance_parser()?;
+            let token = parser.advance()?;
 
             match token.kind {
                 TokenKind::String => tape.add_string_markers(token.start, token.end),
@@ -75,17 +78,13 @@ impl<'a> Parser<'a> {
         tape.add_entry(ObjectStart, parser.lexer.pos);
 
         loop {
-            if parser.lexer.pos as usize > parser.input.len() {
-                break;
-            }
-
-            let token: Token = parser.advance_parser()?;
+            let token: Token = parser.advance()?;
 
             match token.kind {
                 TokenKind::String => {
                     tape.add_string_markers(token.start, token.end);
                     Self::expect_colon(parser)?;
-                    let next_token = parser.advance_parser()?;
+                    let next_token = parser.advance()?;
 
                     match next_token.kind {
                         TokenKind::String => {
@@ -118,7 +117,7 @@ impl<'a> Parser<'a> {
     pub fn parse(mut self) -> Result<Tape, JsonError> {
         let mut tape = Tape::with_capacity(self.input.len());
 
-        let token = self.advance_parser()?;
+        let token = self.advance()?;
 
         match token.kind {
             TokenKind::LeftBrace => Self::parse_object(&mut self, &mut tape)?,

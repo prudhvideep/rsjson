@@ -1,4 +1,4 @@
-use crate::{lexer::Lexer, parser::Parser};
+use crate::{parser::Parser};
 use std::fmt;
 
 mod lexer;
@@ -43,9 +43,7 @@ impl From<std::str::Utf8Error> for JsonError {
 }
 
 pub fn parse(input: &str) -> Result<Tape, JsonError> {
-    let lexer = Lexer::new();
-    let parser = Parser::new(input.as_bytes(), lexer);
-
+    let parser = Parser::new(input.as_bytes());
     parser.parse()
 }
 
